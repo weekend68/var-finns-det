@@ -4,26 +4,20 @@ Serves a status page on $PORT (set by Railway).
 
 Required env vars:
   NOTIFY_EMAIL      — recipient email
-  SMTP_HOST         — e.g. smtp.gmail.com
-  SMTP_PORT         — e.g. 587
-  SMTP_USER         — sender email
-  SMTP_PASSWORD     — app password or SMTP password
+  RESEND_API_KEY    — API-nyckel från resend.com (gratis, 100 mail/dag)
 
 Optional:
   PORT              — HTTP port for status page (default: 8080)
-  POLL_INTERVAL     — minutes between checks (default: 30)
+  POLL_INTERVAL     — minutes between checks (default: 2)
 """
 
 import json
 import os
-import smtplib
 import threading
 import time
 import urllib.parse
 import urllib.request
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PRODUCTS = [
@@ -51,8 +45,8 @@ PORT = int(os.getenv("PORT", "8080"))
 FASS_REFERER = "https://fass.se/health/product/20011130000246/stock-status"
 IN_STOCK_STATUSES = {"IN_STOCK", "FEW_IN_STOCK"}
 
-# Shared state between polling thread and web server
 state = {
+    "status": "Startar — hämtar apotekslista...",
     "last_check": None,
     "next_check": None,
     "polls_done": 0,
@@ -121,10 +115,12 @@ def check_product_stock(npl_pack_id, gln_codes, pharmacy_map):
     return in_stock
 
 
-# --- EMAIL ---
+# --- EMAIL via Resend ---
 
 def send_email(newly_available):
+    api_key = os.environ["RESEND_API_KEY"]
     notify = os.environ["NOTIFY_EMAIL"]
+
     lines = []
     for product_name, pharmacies in newly_available:
         lines.append(f"\n{product_name} — {len(pharmacies)} apotek:")
@@ -138,17 +134,25 @@ def send_email(newly_available):
         + f"\n\nKontrollerat: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
         + "https://fass.se/health/product/20011130000246/stock-status"
     )
-    msg = MIMEMultipart()
-    msg["From"] = os.environ["SMTP_USER"]
-    msg["To"] = notify
-    msg["Subject"] = f"🟢 Estradiol i lager på apotek!"
-    msg.attach(MIMEText(body, "plain", "utf-8"))
 
-    with smtplib.SMTP(os.environ["SMTP_HOST"], int(os.environ["SMTP_PORT"])) as server:
-        server.starttls()
-        server.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
-        server.send_message(msg)
-    print(f"  Mail skickat till {notify}")
+    payload = json.dumps({
+        "from": "apoteksvakt@resend.dev",
+        "to": [notify],
+        "subject": "🟢 Estradiol i lager på apotek!",
+        "text": body,
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        result = json.loads(resp.read())
+    print(f"  Mail skickat till {notify} (id: {result.get('id')})")
 
 
 # --- POLLING LOOP ---
@@ -158,6 +162,7 @@ def polling_loop(pharmacy_map):
     prev_in_stock = {p["npl_pack_id"]: set() for p in PRODUCTS}
 
     while True:
+        t0 = time.time()
         now = datetime.now()
         print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(gln_codes)} apotek, {len(PRODUCTS)} produkter...")
 
@@ -188,32 +193,29 @@ def polling_loop(pharmacy_map):
             except Exception as e:
                 print(f"  Mailfel: {e}")
 
-        next_check = datetime.fromtimestamp(time.time() + POLL_INTERVAL)
+        elapsed = time.time() - t0
+        sleep_time = max(0, POLL_INTERVAL - elapsed)
+        next_check = datetime.fromtimestamp(time.time() + sleep_time)
+
         with state_lock:
+            state["status"] = "ok"
             state["last_check"] = now.strftime("%Y-%m-%d %H:%M:%S")
             state["next_check"] = next_check.strftime("%H:%M:%S")
             state["polls_done"] += 1
             state["products"] = updated_products
 
-        time.sleep(POLL_INTERVAL)
+        print(f"  Koll tog {elapsed:.0f}s, sover {sleep_time:.0f}s till nästa")
+        time.sleep(sleep_time)
 
 
 # --- WEB STATUS PAGE ---
-
-STATUS_ICON = {
-    "IN_STOCK": "🟢",
-    "FEW_IN_STOCK": "🟡",
-    "error": "🔴",
-    "waiting": "⏳",
-}
-
 
 def render_html():
     with state_lock:
         snap = json.loads(json.dumps(state))
 
-    if not snap["last_check"]:
-        body = "<p class='waiting'>⏳ Första kontrollen pågår, ladda om om en stund…</p>"
+    if snap["status"] != "ok":
+        body = f"<p class='waiting'>⏳ {snap['status']}</p>"
     else:
         cards = []
         for p in snap["products"]:
@@ -270,7 +272,7 @@ def render_html():
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="60">
-  <title>Estradiol lagerstatus</title>
+  <title>Apoteksvakt — lagerstatus</title>
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 1.5rem; }}
@@ -291,8 +293,8 @@ def render_html():
   </style>
 </head>
 <body>
-  <h1>💊 Estradiol lagerstatus</h1>
-  <p class="subtitle">Uppdateras automatiskt var 60:e sekund · Söker {len(CITIES)} städer · {len(list(state.get("products", PRODUCTS)))} produkter</p>
+  <h1>💊 Apoteksvakt — lagerstatus</h1>
+  <p class="subtitle">Uppdateras automatiskt var 60:e sekund · Söker {len(CITIES)} städer · {len(PRODUCTS)} produkter</p>
   {body}
 </body>
 </html>"""
@@ -308,7 +310,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(html)
 
     def log_message(self, *args):
-        pass  # silence per-request logs
+        pass
 
 
 def start_web_server():
@@ -320,17 +322,20 @@ def start_web_server():
 # --- MAIN ---
 
 def main():
-    for var in ("NOTIFY_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD"):
+    for var in ("NOTIFY_EMAIL", "RESEND_API_KEY"):
         if not os.getenv(var):
             raise SystemExit(f"Saknar miljövariabel: {var}")
 
+    # Start web server immediately so Railway sees a live port
+    web_thread = threading.Thread(target=start_web_server, daemon=True)
+    web_thread.start()
+
     print(f"Hämtar apotekslista ({len(CITIES)} städer)...")
+    with state_lock:
+        state["status"] = f"Startar — hämtar apotekslista för {len(CITIES)} städer..."
     pharmacy_map = fetch_all_pharmacies()
     print(f"Hittade {len(pharmacy_map)} unika apotek i Sverige")
     print(f"Pollar var {POLL_INTERVAL // 60} minut(er)\n")
-
-    web_thread = threading.Thread(target=start_web_server, daemon=True)
-    web_thread.start()
 
     polling_loop(pharmacy_map)
 
