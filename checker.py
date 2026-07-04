@@ -160,7 +160,10 @@ def fetch_all_pharmacies():
     page, page_size = 0, 200
     while True:
         url = f"https://www.lakemedelsverket.se/api/pharmacy/search?pageSize={page_size}&pageIndex={page}"
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; medicinstatus/1.0)",
+        })
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
         docs = data.get("documents", [])
