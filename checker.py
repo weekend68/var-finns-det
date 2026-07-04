@@ -32,9 +32,11 @@ SHOW_LIMIT = 10  # pharmacies shown before "Visa alla"-button
 SITE_NAME = os.getenv("SITE_NAME", "medicinstatus.se")
 
 PRODUCTS = [
-    {"name": "Estradot 37,5 mcg depotplåster",      "npl_pack_id": "20011130100489"},
-    {"name": "Lenzetto spray 1,53 mg (liten förp)",  "npl_pack_id": "20140320100036"},
-    {"name": "Lenzetto spray 1,53 mg (stor förp)",   "npl_pack_id": "20160407100353"},
+    {"name": "Estradot 25 mcg depotplåster",         "npl_pack_id": "20040113100574"},
+    {"name": "Estradot 37,5 mcg depotplåster",       "npl_pack_id": "20011130100489"},
+    {"name": "Estradot 50 mcg depotplåster",         "npl_pack_id": "20011130100502"},
+    {"name": "Estradot 75 mcg depotplåster",         "npl_pack_id": "20011130100526"},
+    {"name": "Estradot 100 mcg depotplåster",        "npl_pack_id": "20011130100564"},
     {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025"},
 ]
 
