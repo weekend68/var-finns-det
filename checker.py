@@ -251,6 +251,7 @@ def send_email(newly_available):
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; medicinstatus/1.0)",
         },
     )
     try:
