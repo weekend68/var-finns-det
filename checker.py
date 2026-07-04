@@ -21,6 +21,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from zoneinfo import ZoneInfo
@@ -84,18 +85,6 @@ PRODUCTS = [
     {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025"},
 ]
 
-CITIES = [
-    ("Stockholm",   18.07,  59.33), ("Göteborg",    11.97,  57.71),
-    ("Malmö",       13.00,  55.60), ("Uppsala",      17.65,  59.86),
-    ("Linköping",   15.62,  58.41), ("Örebro",       15.21,  59.27),
-    ("Västerås",    16.55,  59.62), ("Helsingborg",  12.69,  56.05),
-    ("Norrköping",  16.19,  58.60), ("Jönköping",    14.16,  57.78),
-    ("Umeå",        20.26,  63.83), ("Luleå",        22.14,  65.58),
-    ("Sundsvall",   17.31,  62.39), ("Gävle",        17.14,  60.67),
-    ("Östersund",   14.64,  63.18), ("Växjö",        14.81,  56.88),
-    ("Borås",       12.93,  57.73), ("Karlstad",     13.51,  59.38),
-    ("Kalmar",      16.36,  56.66), ("Halmstad",     12.86,  56.67),
-]
 
 state = {
     "status": "Startar — hämtar apotekslista...",
@@ -166,16 +155,29 @@ def fass_post(path, body):
 
 
 def fetch_all_pharmacies():
-    pharmacies = {}
-    for city, lon, lat in CITIES:
-        try:
-            for p in fass_get(f"pharmacy?longitude={lon}&latitude={lat}&limit=50"):
-                gln = p.get("glnCode")
-                if gln and gln not in pharmacies:
-                    pharmacies[gln] = p
-        except Exception as e:
-            print(f"[{city}] fel vid apotekshämtning: {e}")
-    return pharmacies
+    """Fetch all authorized Swedish pharmacies from Läkemedelsverket's open API."""
+    pharmacy_map = {}
+    page, page_size = 0, 200
+    while True:
+        url = f"https://www.lakemedelsverket.se/api/pharmacy/search?pageSize={page_size}&pageIndex={page}"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+        docs = data.get("documents", [])
+        for d in docs:
+            gln = d.get("glnCode")
+            if gln:
+                street = d.get("streetAddress", "")
+                postal = d.get("postalcode", "")
+                city   = d.get("city", "")
+                addr = f"{street}, {postal} {city}".strip(", ")
+                pharmacy_map[gln] = {"name": d.get("name", gln), "address": addr}
+        total   = data.get("totalMatching", 0)
+        fetched = page * page_size + len(docs)
+        if fetched >= total or not docs:
+            break
+        page += 1
+    return pharmacy_map
 
 
 def check_product_stock(npl_pack_id, gln_codes, pharmacy_map):
@@ -247,19 +249,37 @@ def send_email(newly_available):
 def polling_loop(pharmacy_map, prev_in_stock):
     gln_codes = list(pharmacy_map.keys())
 
+    def check_one(product):
+        try:
+            pharmacies = check_product_stock(product["npl_pack_id"], gln_codes, pharmacy_map)
+            return product, pharmacies, None
+        except Exception as e:
+            return product, [], str(e)
+
     while True:
         t0 = time.time()
         now = now_local()
-        print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(gln_codes)} apotek, {len(PRODUCTS)} produkter...")
+        print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(gln_codes)} apotek, {len(PRODUCTS)} produkter (parallellt)...")
+
+        # Run all product checks concurrently — each does batched HTTP calls internally
+        with ThreadPoolExecutor(max_workers=len(PRODUCTS)) as executor:
+            future_map = {executor.submit(check_one, p): p for p in PRODUCTS}
+            result_map = {}
+            for future in as_completed(future_map):
+                product, pharmacies, error = future.result()
+                result_map[product["npl_pack_id"]] = (product, pharmacies, error)
 
         newly_available = []
         updated_products = []
 
         for product in PRODUCTS:
             npl_pack_id = product["npl_pack_id"]
-            name = product["name"]
-            try:
-                pharmacies = check_product_stock(npl_pack_id, gln_codes, pharmacy_map)
+            p, pharmacies, error = result_map[npl_pack_id]
+            name = p["name"]
+            if error:
+                print(f"  {name}: FEL — {error}")
+                updated_products.append({**product, "pharmacies": [], "error": error})
+            else:
                 current_glns = {ph["name"] for ph in pharmacies}
                 prev_glns = prev_in_stock.get(npl_pack_id, set())
 
@@ -270,9 +290,6 @@ def polling_loop(pharmacy_map, prev_in_stock):
                 prev_in_stock[npl_pack_id] = current_glns
                 print(f"  {name}: {len(pharmacies)} i lager")
                 updated_products.append({**product, "pharmacies": pharmacies, "error": None})
-            except Exception as e:
-                print(f"  {name}: FEL — {e}")
-                updated_products.append({**product, "pharmacies": [], "error": str(e)})
 
         if newly_available:
             if os.getenv("RESEND_API_KEY"):
@@ -373,7 +390,7 @@ def render_html():
 
     og_image = f"{SITE_URL}/og-image.svg" if SITE_URL else ""
     canonical = SITE_URL or ""
-    desc = f"Realtidsövervakning av lagerstatus för {len(PRODUCTS)} utvalda läkemedel på ~861 apotek runt om i Sverige. Uppdateras automatiskt."
+    desc = f"Realtidsövervakning av lagerstatus för {len(PRODUCTS)} utvalda läkemedel på alla Sveriges apotek. Uppdateras automatiskt."
     poll_min = POLL_INTERVAL // 60
     if SITE_NAME.endswith(".se"):
         name_base, name_tld = SITE_NAME[:-3], ".se"
@@ -474,7 +491,7 @@ def render_html():
       <p class="hero-tagline">Lagerstatus för läkemedel på apotek i Sverige</p>
       <p class="hero-desc">
         Sidan bevakar lagerstatus för {len(PRODUCTS)} utvalda läkemedel
-        på ~861 apotek runt om i Sverige. Informationen hämtas direkt från
+        på alla Sveriges apotek. Informationen hämtas direkt från
         <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>
         och uppdateras automatiskt var {poll_min}. minut.
         Du kan prenumerera på e-postaviseringar när ett läkemedel återfås i lager.
@@ -539,11 +556,11 @@ def main():
     # Load cached state so page shows data right away after a restart
     prev_in_stock = load_cache()
 
-    print(f"Hämtar apotekslista ({len(CITIES)} städer)...")
+    print("Hämtar apoteksregister från Läkemedelsverket...")
     with state_lock:
-        state["status"] = "Startar — hämtar apotekslista..."
+        state["status"] = "Startar — hämtar apoteksregister..."
     pharmacy_map = fetch_all_pharmacies()
-    print(f"Hittade {len(pharmacy_map)} unika apotek i Sverige")
+    print(f"Hittade {len(pharmacy_map)} apotek i Sverige (Läkemedelsverket)")
     print(f"Pollar var {POLL_INTERVAL // 60} minut(er)\n")
 
     polling_loop(pharmacy_map, prev_in_stock)
