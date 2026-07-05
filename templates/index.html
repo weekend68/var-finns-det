@@ -184,10 +184,8 @@
       <p class="waiting">⏳ {{ snap.status }}</p>
     {% else %}
       <p class="meta">
-        Senaste koll: {{ snap.last_check }} &middot;
-        Nästa: {{ snap.next_check }} &middot;
-        Körningar: {{ snap.polls_done }} &middot;
-        {% if email_active %}✉️ Mail aktiverat{% else %}⚠️ Mail ej konfigurerat{% endif %}
+        Uppdaterad: {{ snap.last_check[11:16] if snap.last_check else '—' }} &middot;
+        Nästa: {{ snap.next_check[:5] if snap.next_check else '—' }}
       </p>
 
       {% for p in snap.products %}
