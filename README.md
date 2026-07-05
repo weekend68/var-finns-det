@@ -102,7 +102,7 @@ SQLite på Railway persistent volym (`/data/medicinstatus.db`).
 | `SITE_NAME` | Sajt-namn i mallar | `varfinnsdet.se` |
 | `SITE_URL` | Publik URL (utan avslutande /) | — |
 | `DB_PATH` | Sökväg till SQLite-databasen | `/data/medicinstatus.db` |
-| `POLL_INTERVAL` | Minuter mellan pollningar | `2` |
+| `POLL_INTERVAL` | Minuter mellan pollningar | `10` |
 | `CACHE_FILE` | Sökväg för tillstånds-cache | `/data/medicinstatus_cache.json` |
 
 ---
