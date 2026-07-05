@@ -92,6 +92,34 @@ def load_cache():
         return {}
 
 
+def _save_pharmacy_cache(pharmacy_map):
+    try:
+        from db import get_db
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO pharmacy_cache (id, data, saved_at) VALUES (1, ?, datetime('now')) "
+                "ON CONFLICT(id) DO UPDATE SET data=excluded.data, saved_at=excluded.saved_at",
+                [json.dumps(pharmacy_map)],
+            )
+            db.commit()
+    except Exception as e:
+        print(f"  Apotekscache-skrivfel: {e}")
+
+
+def _load_pharmacy_cache():
+    try:
+        from db import get_db
+        with get_db() as db:
+            row = db.execute("SELECT data, saved_at FROM pharmacy_cache WHERE id=1").fetchone()
+        if row:
+            data = json.loads(row["data"])
+            print(f"Apoteksregister laddad från DB-cache ({len(data)} apotek, sparat {row['saved_at'][:10]})")
+            return data
+    except Exception as e:
+        print(f"  Apotekscache-läsfel: {e}")
+    return {}
+
+
 def fetch_all_pharmacies():
     """Fetch all authorized Swedish pharmacies from Läkemedelsverket's open API."""
     pharmacy_map = {}
@@ -194,10 +222,10 @@ def _get_subscription_products():
         return []
 
 
-def polling_loop(pharmacy_map, prev_in_stock):
-    gln_codes = list(pharmacy_map.keys())
-
+def polling_loop(prev_in_stock):
     def check_one(product):
+        pharmacy_map = _pharmacy_map
+        gln_codes = list(pharmacy_map.keys())
         try:
             pharmacies = check_stock(product["npl_pack_id"], gln_codes, pharmacy_map)
             return product, pharmacies, None
@@ -212,7 +240,7 @@ def polling_loop(pharmacy_map, prev_in_stock):
         extra = _get_subscription_products()
         all_products = PRODUCTS + extra
 
-        print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(gln_codes)} apotek, "
+        print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(_pharmacy_map)} apotek, "
               f"{len(PRODUCTS)} fasta + {len(extra)} via prenumeration (parallellt)...")
 
         with ThreadPoolExecutor(max_workers=max(len(all_products), 1)) as executor:
@@ -404,18 +432,41 @@ def start_polling():
 
     prev_in_stock = load_cache()
 
-    print("Hämtar apoteksregister från Läkemedelsverket...")
-    with state_lock:
-        state["status"] = "Startar — hämtar apoteksregister..."
-    pharmacy_map = {}
-    while not pharmacy_map:
-        try:
-            pharmacy_map = fetch_all_pharmacies()
-        except Exception as e:
-            print(f"  Apotekshämtning misslyckades ({e}) — försöker om 30s")
-            time.sleep(30)
-    _pharmacy_map = pharmacy_map  # expose for live stock route
-    print(f"Hittade {len(pharmacy_map)} apotek i Sverige (Läkemedelsverket)")
+    # Load pharmacy registry from DB cache for immediate start (no waiting message)
+    cached = _load_pharmacy_cache()
+    if cached:
+        _pharmacy_map = cached
+        with state_lock:
+            state["status"] = "ok (apoteksregister från cache)"
+    else:
+        print("Ingen apotekscache — hämtar från Läkemedelsverket...")
+        with state_lock:
+            state["status"] = "Startar — hämtar apoteksregister..."
+        while not _pharmacy_map:
+            try:
+                _pharmacy_map = fetch_all_pharmacies()
+                _save_pharmacy_cache(_pharmacy_map)
+            except Exception as e:
+                print(f"  Apotekshämtning misslyckades ({e}) — försöker om 30s")
+                time.sleep(30)
+        print(f"Hittade {len(_pharmacy_map)} apotek i Sverige (Läkemedelsverket)")
+
     print(f"Pollar var {POLL_INTERVAL // 60} minut(er)\n")
 
-    polling_loop(pharmacy_map, prev_in_stock)
+    # Refresh pharmacy registry in background thread (keeps cache fresh without blocking)
+    def _refresh_pharmacies():
+        try:
+            fresh = fetch_all_pharmacies()
+            if fresh:
+                global _pharmacy_map
+                _pharmacy_map = fresh
+                _save_pharmacy_cache(fresh)
+                print(f"  Apoteksregister uppdaterat: {len(fresh)} apotek")
+        except Exception as e:
+            print(f"  Apoteksregister-uppdatering misslyckades: {e}")
+
+    if cached:
+        t = threading.Thread(target=_refresh_pharmacies, daemon=True, name="pharmacy-refresh")
+        t.start()
+
+    polling_loop(prev_in_stock)

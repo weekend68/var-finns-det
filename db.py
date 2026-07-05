@@ -63,6 +63,12 @@ CREATE TABLE IF NOT EXISTS poll_log (
 );
 
 CREATE INDEX IF NOT EXISTS poll_log_at ON poll_log (polled_at DESC);
+
+CREATE TABLE IF NOT EXISTS pharmacy_cache (
+    id       INTEGER PRIMARY KEY CHECK(id = 1),
+    data     TEXT NOT NULL,
+    saved_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 _SEED = """
