@@ -223,25 +223,26 @@ def _get_subscription_products():
 
 
 def polling_loop(prev_in_stock):
-    def check_one(product):
-        pharmacy_map = _pharmacy_map
-        gln_codes = list(pharmacy_map.keys())
-        try:
-            pharmacies = check_stock(product["npl_pack_id"], gln_codes, pharmacy_map)
-            return product, pharmacies, None
-        except Exception as e:
-            return product, [], str(e)
-
     while True:
         t0 = time.time()
         now = now_local()
+
+        pharmacy_map = _pharmacy_map
+        gln_codes = list(pharmacy_map.keys())
 
         # Merge hardcoded PRODUCTS with active subscription medications
         extra = _get_subscription_products()
         all_products = PRODUCTS + extra
 
-        print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(_pharmacy_map)} apotek, "
+        print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(gln_codes)} apotek, "
               f"{len(PRODUCTS)} fasta + {len(extra)} via prenumeration (parallellt)...")
+
+        def check_one(product):
+            try:
+                pharmacies = check_stock(product["npl_pack_id"], gln_codes, pharmacy_map)
+                return product, pharmacies, None
+            except Exception as e:
+                return product, [], str(e)
 
         with ThreadPoolExecutor(max_workers=max(len(all_products), 1)) as executor:
             future_map = {executor.submit(check_one, p): p for p in all_products}

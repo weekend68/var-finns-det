@@ -154,7 +154,7 @@
         Sidan bevakar lagerstatus för {{ product_count }} utvalda läkemedel
         på alla Sveriges apotek. Informationen hämtas direkt från
         <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>
-        och uppdateras automatiskt var {{ poll_min }}. minut.
+        och uppdateras automatiskt var {{ poll_min }} minuter.
         Du kan prenumerera på e-postaviseringar när ett läkemedel återfås i lager.
       </p>
     </div>
@@ -184,8 +184,7 @@
       <p class="waiting">⏳ {{ snap.status }}</p>
     {% else %}
       <p class="meta">
-        Uppdaterad: {{ snap.last_check[11:16] if snap.last_check else '—' }} &middot;
-        Nästa: {{ snap.next_check[:5] if snap.next_check else '—' }}
+        Uppdaterad: {{ snap.last_check[11:16] if snap.last_check else '—' }}
       </p>
 
       {% for p in snap.products %}
