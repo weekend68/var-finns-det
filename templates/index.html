@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="60">
   <title>{{ site_name }} — lagerstatus för läkemedel</title>
   <meta name="description" content="{{ desc }}">
   <meta name="robots" content="index, follow">
@@ -108,6 +107,20 @@
     .pkg-stock.in { color: #2a7d2a; }
     .pkg-stock.out { color: #c0392b; }
     .search-msg { font-size: 0.85rem; color: #888; font-style: italic; padding: 0.5rem 0; }
+    .search-clear { background: none; border: none; padding: 0.4rem 0.7rem;
+                    font-size: 1.1rem; color: #aaa; cursor: pointer; line-height: 1;
+                    flex-shrink: 0; }
+    .search-clear:hover { color: #555; }
+    .pkg-item { flex-direction: column; align-items: stretch; gap: 0; }
+    .pkg-header { display: flex; align-items: center; gap: 0.5rem; }
+    .pkg-header .pkg-name { flex: 1; }
+    .ph-list { margin-top: 0.4rem; border-top: 1px solid #f0f0f0; padding-top: 0.4rem; }
+    .ph-item { display: flex; justify-content: space-between; padding: 0.2rem 0.5rem;
+               font-size: 0.78rem; }
+    .ph-name { color: #444; }
+    .ph-status { font-weight: 600; color: #2a7d2a; }
+    .ph-status.few { color: #b07d00; }
+    .ph-more { font-size: 0.75rem; color: #999; padding: 0.2rem 0.5rem; }
 
     footer { max-width: 720px; margin: 2rem auto 0; padding: 1rem 1.5rem 1.5rem;
              font-size: 0.75rem; color: #999; line-height: 1.6;
@@ -149,6 +162,8 @@
       <div class="search-row">
         <input id="search-input" class="search-input" type="search"
                placeholder="Sök läkemedel…" autocomplete="off" aria-label="Sök läkemedel">
+        <button id="search-clear" class="search-clear" type="button"
+                aria-label="Rensa sökning" style="display:none">✕</button>
       </div>
       <p class="search-form-text">Skriv minst 2 tecken för att söka i Fass-katalogen</p>
       <div id="search-dropdown" class="search-results" style="display:none"></div>
@@ -238,15 +253,18 @@
 
   <script>
   (function () {
-    const input = document.getElementById('search-input');
-    const dropdown = document.getElementById('search-dropdown');
-    const resultArea = document.getElementById('search-result-area');
+    const input     = document.getElementById('search-input');
+    const clearBtn  = document.getElementById('search-clear');
+    const dropdown  = document.getElementById('search-dropdown');
+    const resultArea= document.getElementById('search-result-area');
     const statusCards = document.getElementById('status-cards');
-    let debounce, currentNplId = '';
+    let debounce;
 
+    // --- Input events ---
     input.addEventListener('input', function () {
       clearTimeout(debounce);
       const q = input.value.trim();
+      clearBtn.style.display = q ? '' : 'none';
       if (q.length < 2) { hideDropdown(); return; }
       debounce = setTimeout(() => doSearch(q), 250);
     });
@@ -266,34 +284,40 @@
         const a = dropdown.querySelector('.search-item.active');
         if (a) { e.preventDefault(); a.click(); }
       } else if (e.key === 'Escape') {
-        hideDropdown();
+        if (dropdown.style.display !== 'none') {
+          hideDropdown();
+        } else {
+          clearSearch();
+        }
       }
     });
+
+    input.addEventListener('search', function () {
+      if (!input.value) clearSearch();
+    });
+
+    clearBtn.addEventListener('click', clearSearch);
 
     document.addEventListener('click', function (e) {
       if (!input.contains(e.target) && !dropdown.contains(e.target)) hideDropdown();
     });
 
-    // Reset: clear search when user deletes input
-    input.addEventListener('search', function () {
-      if (!input.value) { hideDropdown(); showStatus(); }
-    });
-
+    // --- Search ---
     function doSearch(q) {
       fetch('/api/search?q=' + encodeURIComponent(q))
         .then(r => r.json())
-        .then(results => showDropdown(results))
+        .then(showDropdown)
         .catch(() => hideDropdown());
     }
 
     function showDropdown(results) {
       if (!results.length) {
-        dropdown.innerHTML = '<div class="search-item" style="color:#888">Inga träffar</div>';
+        dropdown.innerHTML = '<div class="search-item" style="color:#888;cursor:default">Inga träffar</div>';
         dropdown.style.display = 'block';
         return;
       }
       dropdown.innerHTML = results.map(r =>
-        `<div class="search-item" data-npl="${r.npl_id}" data-name="${esc(r.name)}">
+        `<div class="search-item" data-npl="${esc(r.npl_id)}" data-name="${esc(r.name)}">
            ${esc(r.name)}<span style="color:#888;font-size:.8rem;margin-left:.5rem">${esc(r.form || '')}</span>
          </div>`
       ).join('');
@@ -305,11 +329,19 @@
 
     function hideDropdown() { dropdown.style.display = 'none'; }
 
-    function showStatus() { statusCards.style.display = ''; resultArea.innerHTML = ''; }
+    function clearSearch() {
+      input.value = '';
+      clearBtn.style.display = 'none';
+      hideDropdown();
+      resultArea.innerHTML = '';
+      statusCards.style.display = '';
+      input.focus();
+    }
 
+    // --- Product selection ---
     function selectProduct(nplId, name) {
-      currentNplId = nplId;
       input.value = name;
+      clearBtn.style.display = '';
       hideDropdown();
       statusCards.style.display = 'none';
       resultArea.innerHTML = '<p class="search-msg">Hämtar förpackningar…</p>';
@@ -333,38 +365,51 @@
 
       const items = pkgs.map(p => `
         <div class="pkg-item">
-          <span class="pkg-name">${esc(p.name || p.npl_pack_id)}</span>
-          <span class="pkg-stock ${p.shortage ? 'out' : ''}" id="stock-${p.npl_pack_id}">${p.shortage ? 'Restnoterat' : '…'}</span>
-          <a class="btn-watch" href="/subscribe?npl=${esc(p.npl_pack_id)}">Bevaka</a>
+          <div class="pkg-header">
+            <span class="pkg-name">${esc(p.name || p.npl_pack_id)}</span>
+            <span class="pkg-stock ${p.shortage ? 'out' : ''}" id="stock-${esc(p.npl_pack_id)}">${p.shortage ? 'Restnoterat' : '…'}</span>
+            <a class="btn-watch" href="/subscribe?npl=${esc(p.npl_pack_id)}">Bevaka</a>
+          </div>
+          <div class="ph-list" id="ph-${esc(p.npl_pack_id)}"></div>
         </div>`).join('');
 
       resultArea.innerHTML = `<div class="search-result-card">
         <h3>${esc(productName)}</h3>
         <div class="pkg-list">${items}</div>
         <p style="font-size:.75rem;color:#aaa;margin-top:.75rem">
-          Samplad lagerkoll på 300 apotek — prenumerera för fullständig bevakning av hela Sverige.
+          Samplad koll mot 300 apotek — <a href="/subscribe" style="color:#aaa">prenumerera</a> för fullständig bevakning.
         </p>
       </div>`;
 
-      // Fetch stock for each package asynchronously
       pkgs.forEach(p => {
         fetch('/api/stock/' + encodeURIComponent(p.npl_pack_id))
           .then(r => r.json())
           .then(data => {
-            const el = document.getElementById('stock-' + p.npl_pack_id);
-            if (!el) return;
-            const n = data.pharmacies ? data.pharmacies.length : 0;
-            if (n > 0) {
-              el.textContent = n + ' apotek i lager';
-              el.classList.add('in');
+            const stockEl = document.getElementById('stock-' + p.npl_pack_id);
+            const phEl    = document.getElementById('ph-' + p.npl_pack_id);
+            if (!stockEl) return;
+            const pharmacies = data.pharmacies || [];
+            if (pharmacies.length > 0) {
+              stockEl.textContent = pharmacies.length + ' apotek i lager';
+              stockEl.className = 'pkg-stock in';
+              if (phEl) {
+                const show = pharmacies.slice(0, 5);
+                const rest = pharmacies.length - show.length;
+                phEl.innerHTML = show.map(ph =>
+                  `<div class="ph-item">
+                     <span class="ph-name">${esc(ph.name)}</span>
+                     <span class="ph-status${ph.status === 'FEW_IN_STOCK' ? ' few' : ''}">${ph.status === 'FEW_IN_STOCK' ? 'Få kvar' : 'I lager'}</span>
+                   </div>`).join('')
+                  + (rest > 0 ? `<p class="ph-more">+${rest} apotek till</p>` : '');
+              }
             } else {
-              el.textContent = 'Restnoterat';
-              el.classList.add('out');
+              stockEl.textContent = 'Restnoterat';
+              stockEl.className = 'pkg-stock out';
             }
           })
           .catch(() => {
             const el = document.getElementById('stock-' + p.npl_pack_id);
-            if (el) el.textContent = '';
+            if (el && el.textContent === '…') el.textContent = '?';
           });
       });
     }
@@ -372,6 +417,11 @@
     function esc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+
+    // Reload page every 60s, but only when user is not searching
+    setInterval(() => {
+      if (!input.value.trim()) location.reload();
+    }, 60000);
   })();
   </script>
 
