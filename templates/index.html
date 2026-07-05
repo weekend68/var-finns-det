@@ -81,11 +81,21 @@
 
     /* search */
     .search-section { max-width: 720px; margin-bottom: 1.5rem; }
+    .search-hero { max-width: 560px; margin-top: 1.5rem; position: relative; }
     .search-row { display: flex; gap: 0.5rem; }
-    .search-input { flex: 1; padding: 0.65rem 0.9rem; border: 1.5px solid #dde4ec;
-                    border-radius: 7px; font-size: 1rem; font-family: inherit;
-                    background: #fff; }
-    .search-input:focus { outline: none; border-color: #22D3A5; }
+    .search-input {
+      flex: 1; padding: 0.9rem 1.1rem 0.9rem 3rem;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 10px; font-size: 1.05rem; font-family: inherit;
+      background: rgba(255,255,255,0.08); color: #EEF4F8;
+      backdrop-filter: blur(4px);
+    }
+    .search-input::placeholder { color: #6a90a8; }
+    .search-input:focus { outline: none; border-color: #22D3A5; background: rgba(255,255,255,0.12); }
+    .search-icon {
+      position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+      color: #6a90a8; pointer-events: none; width: 18px; height: 18px;
+    }
     .search-results { background: #fff; border: 1px solid #e0e0e0; border-radius: 7px;
                       margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.1);
                       max-height: 260px; overflow-y: auto; }
@@ -151,11 +161,18 @@
       </div>
       <p class="hero-tagline">Vilket apotek har ditt läkemedel just nu?</p>
       <p class="hero-desc">
-        Här ser du lagerstatus för {{ product_count }} läkemedel på alla Sveriges apotek —
+        Lagerstatus för {{ product_count }} läkemedel på alla Sveriges apotek —
         uppdaterat var {{ poll_min }}:e minut direkt från
         <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>.
-        Är ditt läkemedel restnoterat? Sätt upp en bevakning så får du ett mail så fort det finns igen.
       </p>
+      <div class="search-hero">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="search-input" class="search-input" type="search"
+               placeholder="Sök ditt läkemedel…" autocomplete="off" aria-label="Sök läkemedel">
+        <div id="search-dropdown" class="search-results" style="display:none"></div>
+      </div>
     </div>
     <div class="live-badge" aria-label="Live">
       <span class="live-dot"></span>LIVE
@@ -163,18 +180,7 @@
   </header>
 
   <main>
-    <!-- Search box -->
-    <div class="search-section">
-      <div class="search-row">
-        <input id="search-input" class="search-input" type="search"
-               placeholder="Vilket läkemedel letar du efter?" autocomplete="off" aria-label="Sök läkemedel">
-        <button id="search-clear" class="search-clear" type="button"
-                aria-label="Rensa sökning" style="display:none">✕</button>
-      </div>
-      <p class="search-form-text">Skriv minst 2 tecken för att söka bland läkemedel</p>
-      <div id="search-dropdown" class="search-results" style="display:none"></div>
-      <div id="search-result-area"></div>
-    </div>
+    <div id="search-result-area"></div>
 
     <!-- Existing status cards -->
     <div id="status-cards">
@@ -257,7 +263,6 @@
   <script>
   (function () {
     const input     = document.getElementById('search-input');
-    const clearBtn  = document.getElementById('search-clear');
     const dropdown  = document.getElementById('search-dropdown');
     const resultArea= document.getElementById('search-result-area');
     const statusCards = document.getElementById('status-cards');
@@ -267,7 +272,6 @@
     input.addEventListener('input', function () {
       clearTimeout(debounce);
       const q = input.value.trim();
-      clearBtn.style.display = q ? '' : 'none';
       if (q.length < 2) { hideDropdown(); return; }
       debounce = setTimeout(() => doSearch(q), 250);
     });
@@ -298,8 +302,6 @@
     input.addEventListener('search', function () {
       if (!input.value) clearSearch();
     });
-
-    clearBtn.addEventListener('click', clearSearch);
 
     document.addEventListener('click', function (e) {
       if (!input.contains(e.target) && !dropdown.contains(e.target)) hideDropdown();
@@ -334,7 +336,6 @@
 
     function clearSearch() {
       input.value = '';
-      clearBtn.style.display = 'none';
       hideDropdown();
       resultArea.innerHTML = '';
       statusCards.style.display = '';
