@@ -75,7 +75,7 @@ _polling_started = threading.Event()
 
 
 def _template_vars():
-    og_image = f"{SITE_URL}/og-image.svg" if SITE_URL else ""
+    og_image = f"{SITE_URL}/og-image.png" if SITE_URL else ""
     desc = (
         f"Realtidsövervakning av lagerstatus för {len(checker.PRODUCTS)} utvalda läkemedel "
         "på alla Sveriges apotek. Uppdateras automatiskt."
@@ -117,11 +117,13 @@ def create_app():
     def index():
         return render_template("index.html", **_template_vars())
 
-    @app.route("/og-image.svg")
+    @app.route("/og-image.png")
     def og_image():
+        import cairosvg
+        png = cairosvg.svg2png(bytestring=OG_IMAGE_SVG.encode(), output_width=1200, output_height=630)
         return Response(
-            OG_IMAGE_SVG,
-            mimetype="image/svg+xml",
+            png,
+            mimetype="image/png",
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
