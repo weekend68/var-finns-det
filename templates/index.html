@@ -41,9 +41,9 @@
     .hero-name { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
     .hero-name-main { color: #EEF4F8; }
     .hero-name-tld  { color: #22D3A5; }
-    .hero-tagline { color: #6B8CA6; font-size: 0.8rem; letter-spacing: 0.06em;
+    .hero-tagline { color: #8CAFC7; font-size: 0.8rem; letter-spacing: 0.06em;
                     text-transform: uppercase; margin-bottom: 0.9rem; }
-    .hero-desc { color: #8CAFC7; font-size: 0.875rem; line-height: 1.65; max-width: 560px; }
+    .hero-desc { color: #A8C8DC; font-size: 0.875rem; line-height: 1.65; max-width: 560px; }
     .hero-desc a { color: #22D3A5; text-decoration: none; }
     .live-badge { position: absolute; top: 1.25rem; right: 1.5rem;
                   display: flex; align-items: center; gap: 0.4rem;
@@ -227,7 +227,7 @@
                 {% for ph in visible %}
                 <tr>
                   <td>{{ ph.name }}</td>
-                  <td class="status {{ ph.status | lower }}">{{ ph.status | replace("_", " ") }}</td>
+                  <td class="status {{ ph.status | lower }}">{% if ph.status == 'IN_STOCK' %}I lager{% elif ph.status == 'FEW_IN_STOCK' %}Få kvar{% else %}{{ ph.status }}{% endif %}</td>
                   <td>{% if ph.exchangeable %}✓{% endif %}</td>
                 </tr>
                 {% endfor %}
@@ -241,7 +241,7 @@
                   {% for ph in hidden %}
                   <tr>
                     <td>{{ ph.name }}</td>
-                    <td class="status {{ ph.status | lower }}">{{ ph.status | replace("_", " ") }}</td>
+                    <td class="status {{ ph.status | lower }}">{% if ph.status == 'IN_STOCK' %}I lager{% elif ph.status == 'FEW_IN_STOCK' %}Få kvar{% else %}{{ ph.status }}{% endif %}</td>
                     <td>{% if ph.exchangeable %}✓{% endif %}</td>
                   </tr>
                   {% endfor %}
@@ -381,9 +381,6 @@
       resultArea.innerHTML = `<div class="search-result-card">
         <h3>${esc(productName)}</h3>
         <div class="pkg-list">${items}</div>
-        <p style="font-size:.75rem;color:#aaa;margin-top:.75rem">
-          Samplad koll mot 300 apotek — <a href="/subscribe" style="color:#aaa">prenumerera</a> för fullständig bevakning.
-        </p>
       </div>`;
 
       pkgs.forEach(p => {

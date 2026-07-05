@@ -103,6 +103,14 @@ def subscribe():
         mail.send_confirmation(email, token, SITE_URL)
     except Exception as e:
         print(f"  Bekräftelsemejl misslyckades: {e}")
+        return render_template("message.html",
+            title="Något gick fel",
+            message="Vi kunde inte skicka bekräftelsemailet just nu. "
+                    "Försök igen om en stund — din adress är inte sparad.",
+            icon="❌",
+            cta_url="/",
+            cta_text="Tillbaka till startsidan",
+        ), 503
 
     return render_template("message.html",
         title="Kontrollera din e-post",
