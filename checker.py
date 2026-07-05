@@ -44,8 +44,8 @@ PRODUCTS = [
     {"name": "Estradot 75 mcg depotplåster",         "npl_pack_id": "20011130100526"},
     {"name": "Estradot 100 mcg depotplåster",        "npl_pack_id": "20011130100564"},
     {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025"},
-    {"name": "Lenzetto 1,53 mg/dos transdermal spray", "npl_pack_id": "20140320100036"},
-    {"name": "Lenzetto 1,53 mg/dos transdermal spray", "npl_pack_id": "20160407100353"},
+    {"name": "Lenzetto 1,53 mg/dos transdermal spray (1 × 56 dos)", "npl_pack_id": "20140320100036"},
+    {"name": "Lenzetto 1,53 mg/dos transdermal spray (3 × 56 dos)", "npl_pack_id": "20160407100353"},
 ]
 
 
