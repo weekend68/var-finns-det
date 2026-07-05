@@ -119,13 +119,7 @@ def create_app():
 
     @app.route("/og-image.png")
     def og_image():
-        import cairosvg
-        png = cairosvg.svg2png(bytestring=OG_IMAGE_SVG.encode(), output_width=1200, output_height=630)
-        return Response(
-            png,
-            mimetype="image/png",
-            headers={"Cache-Control": "public, max-age=86400"},
-        )
+        return app.send_static_file("og-image.png")
 
     @app.route("/healthz")
     def healthz():

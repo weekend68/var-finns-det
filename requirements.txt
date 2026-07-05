@@ -1,3 +1,2 @@
 flask>=3.0
 gunicorn>=23.0
-cairosvg>=2.7
