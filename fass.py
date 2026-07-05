@@ -47,7 +47,8 @@ def search_medications(query):
     Search for medications by name. Returns list of:
       {"npl_id": str, "name": str, "form": str}
 
-    Tries Fass CMS first; falls back to local DB (seeded medications).
+    Uses fass.se CMS full-search (same proxy as stock checks).
+    Merges with local DB so seeded medications always appear.
     """
     q = query.strip()
     if not q or len(q) < 2:
@@ -57,17 +58,8 @@ def search_medications(query):
     if cached and (time.time() - cached[0]) < _CACHE_TTL:
         return cached[1]
 
-    results = []
-    try:
-        data = _proxy_get(f"product/search?query={urllib.parse.quote(q)}&pageSize=15")
-        results = _normalize_search(data, q)
-    except urllib.error.HTTPError as e:
-        if e.code != 404:
-            print(f"  fass search error: {e.code} for '{q}'")
-    except Exception as e:
-        print(f"  fass search error: {e} for '{q}'")
+    results = _fass_search(q)
 
-    # Always merge with DB results so seeded medications are always findable
     db_results = _db_search(q)
     seen_ids = {r["npl_id"] for r in results}
     for r in db_results:
@@ -77,6 +69,28 @@ def search_medications(query):
 
     _search_cache[q] = (time.time(), results)
     return results
+
+
+def _fass_search(q):
+    """Search via fass.se CMS endpoint: vard/full-search/{term}."""
+    try:
+        data = _proxy_get(f"full-search/{urllib.parse.quote(q)}")
+        hits = data.get("human-product-index", {}).get("hits", [])
+        results = []
+        for hit in hits[:15]:
+            obj = hit.get("object", {})
+            npl_id = obj.get("nplId") or hit.get("id", "")
+            trade = obj.get("tradeName", "")
+            strength = obj.get("strength", "")
+            form = obj.get("doseForm", "")
+            if not (npl_id and trade):
+                continue
+            name = f"{trade} {strength}".strip() if strength else trade
+            results.append({"npl_id": str(npl_id), "name": name, "form": form})
+        return results
+    except Exception as e:
+        print(f"  fass full-search error: {e}")
+        return []
 
 
 def _db_search(q):
@@ -90,73 +104,44 @@ def _db_search(q):
                 [f"%{q}%"],
             ).fetchall()
         return [
-            {
-                "npl_id": r["npl_pack_id"],
-                "name": r["name"],
-                "form": r["form"] or "",
-            }
+            {"npl_id": r["npl_pack_id"], "name": r["name"], "form": r["form"] or ""}
             for r in rows
         ]
     except Exception:
         return []
 
 
-def _normalize_search(data, query):
-    """Normalize varying Fass API response shapes to a consistent list."""
-    results = []
-
-    # Shape 1: {"products": [...]}
-    items = data if isinstance(data, list) else data.get("products", data.get("items", []))
-
-    for item in items[:15]:
-        npl_id = (
-            item.get("nplId") or item.get("npl_id") or item.get("id") or ""
-        )
-        name = (
-            item.get("productName") or item.get("name") or item.get("label") or ""
-        )
-        form = (
-            item.get("pharmaceuticalForm") or item.get("form") or ""
-        )
-        if npl_id and name:
-            results.append({"npl_id": str(npl_id), "name": name, "form": form})
-
-    # If API returned nothing useful, log raw shape for debugging
-    if not results and data:
-        keys = list(data.keys()) if isinstance(data, dict) else type(data).__name__
-        print(f"  fass search: no results for '{query}', response keys: {keys}")
-
-    return results
-
-
 def get_packages(npl_id):
     """
     Get all available packagings for a medication (identified by nplId).
     Returns list of:
-      {"npl_pack_id": str, "name": str, "strength": str, "form": str}
+      {"npl_pack_id": str, "name": str, "form": str, "shortage": bool}
     """
     try:
-        data = _proxy_get(f"product/{npl_id}/packages")
+        items = _proxy_get(f"package/{npl_id}?isParallellImported=false")
     except Exception as e:
         print(f"  fass packages error for {npl_id}: {e}")
         return []
 
     packages = []
-    items = data if isinstance(data, list) else data.get("packages", data.get("items", []))
-    for item in items:
-        pack_id = (
-            item.get("nplPackId") or item.get("npl_pack_id") or item.get("id") or ""
-        )
-        name = item.get("productName") or item.get("name") or ""
-        strength = item.get("strength") or item.get("dose") or ""
-        form = item.get("pharmaceuticalForm") or item.get("form") or ""
-        if pack_id:
-            packages.append({
-                "npl_pack_id": str(pack_id),
-                "name": name or f"{npl_id} – {strength}",
-                "strength": strength,
-                "form": form,
-            })
+    for item in (items if isinstance(items, list) else []):
+        if not item.get("isOnTheMarket", False):
+            continue
+        self_url = item.get("links", {}).get("selfUrl", "")
+        pack_id = self_url[len("package/"):] if self_url.startswith("package/") else ""
+        if not pack_id:
+            continue
+        form = item.get("doseForm", "")
+        container = item.get("container", "")
+        qty = item.get("quantity", "")
+        name_parts = [str(qty), container] if qty and container else [container or str(qty)]
+        name = f"{form} ({', '.join(p for p in name_parts if p)})" if name_parts[0] else form
+        packages.append({
+            "npl_pack_id": pack_id,
+            "name": name or pack_id,
+            "form": form,
+            "shortage": bool(item.get("medicinalShortage")),
+        })
     return packages
 
 

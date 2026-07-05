@@ -334,7 +334,7 @@
       const items = pkgs.map(p => `
         <div class="pkg-item">
           <span class="pkg-name">${esc(p.name || p.npl_pack_id)}</span>
-          <span class="pkg-stock" id="stock-${p.npl_pack_id}">…</span>
+          <span class="pkg-stock ${p.shortage ? 'out' : ''}" id="stock-${p.npl_pack_id}">${p.shortage ? 'Restnoterat' : '…'}</span>
           <a class="btn-watch" href="/subscribe?npl=${esc(p.npl_pack_id)}">Bevaka</a>
         </div>`).join('');
 
