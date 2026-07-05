@@ -32,6 +32,11 @@ SHOW_LIMIT = 10
 # Populated by start_polling(); readable by routes for live stock checks
 _pharmacy_map: dict = {}
 
+# Tracks consecutive polls with 0 pharmacies per product.
+# Requires 2 in a row before clearing prev_in_stock, to avoid false triggers
+# caused by transient API failures.
+_consecutive_zeros: dict = {}
+
 PRODUCTS = [
     {"name": "Estradot 25 mcg depotplåster",         "npl_pack_id": "20040113100574"},
     {"name": "Estradot 37,5 mcg depotplåster",       "npl_pack_id": "20011130100489"},
@@ -232,11 +237,20 @@ def polling_loop(pharmacy_map, prev_in_stock):
                 current_glns = {ph["name"] for ph in pharmacies}
                 prev_glns = prev_in_stock.get(npl_pack_id, set())
 
-                # Alert when going from 0 → >0
-                if pharmacies and not prev_glns:
-                    newly_available.append((name, pharmacies, npl_pack_id))
+                if pharmacies:
+                    _consecutive_zeros.pop(npl_pack_id, None)
+                    # Alert when going from confirmed 0 → >0
+                    if not prev_glns:
+                        newly_available.append((name, pharmacies, npl_pack_id))
+                    prev_in_stock[npl_pack_id] = current_glns
+                else:
+                    # Require 2 consecutive zeros before clearing prev_in_stock.
+                    # A single failed/empty poll won't reset the "seen in stock" state.
+                    zeros = _consecutive_zeros.get(npl_pack_id, 0) + 1
+                    _consecutive_zeros[npl_pack_id] = zeros
+                    if zeros >= 2:
+                        prev_in_stock[npl_pack_id] = set()
 
-                prev_in_stock[npl_pack_id] = current_glns
                 print(f"  {name}: {len(pharmacies)} i lager")
                 if product in PRODUCTS:
                     updated_products.append({**product, "pharmacies": pharmacies, "error": None})

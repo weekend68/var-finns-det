@@ -151,27 +151,48 @@ def check_stock(npl_pack_id, gln_codes, pharmacy_map):
     Returns list of in-stock pharmacies:
       {"name": str, "address": str, "status": str, "exchangeable": bool}
 
-    Batches GLN codes in groups of 50; retries 400s in sub-batches of 10
-    (LMV has pharmacies that Fass doesn't recognize).
+    Batches GLN codes in groups of 50. Retries up to 3 times on transient
+    errors; 400s are broken into sub-batches of 10 (unknown GLNs).
+    Logs coverage so silent data loss is visible in logs.
     """
     results = []
+    failed_glns = 0
+
     for i in range(0, len(gln_codes), 50):
         batch = gln_codes[i:i + 50]
-        try:
-            data = _proxy_post(f"pharmacy/stock/{npl_pack_id}", batch)
-            results.extend(data)
-        except Exception as e:
-            if getattr(e, "code", None) == 400:
-                for j in range(0, len(batch), 10):
-                    sub = batch[j:j + 10]
-                    try:
-                        results.extend(_proxy_post(f"pharmacy/stock/{npl_pack_id}", sub))
-                    except Exception:
-                        pass
-                    time.sleep(0.1)
-            else:
-                print(f"  Fass batchfel (offset {i}): {e}")
+        ok = False
+
+        for attempt in range(3):
+            try:
+                data = _proxy_post(f"pharmacy/stock/{npl_pack_id}", batch)
+                results.extend(data)
+                ok = True
+                break
+            except Exception as e:
+                if getattr(e, "code", None) == 400:
+                    # Some GLNs unknown to Fass — retry in sub-batches of 10
+                    for j in range(0, len(batch), 10):
+                        sub = batch[j:j + 10]
+                        for sub_attempt in range(2):
+                            try:
+                                results.extend(_proxy_post(f"pharmacy/stock/{npl_pack_id}", sub))
+                                break
+                            except Exception:
+                                time.sleep(0.3)
+                        time.sleep(0.1)
+                    ok = True
+                    break
+                # Transient error — back off and retry
+                time.sleep(0.5 * (attempt + 1))
+
+        if not ok:
+            failed_glns += len(batch)
         time.sleep(0.2)
+
+    if failed_glns:
+        pct = failed_glns / len(gln_codes) * 100
+        print(f"  VARNING {npl_pack_id}: {failed_glns}/{len(gln_codes)} "
+              f"({pct:.0f}%) apotek kunde inte kollas — siffran är underskattad")
 
     in_stock = []
     for r in results:
