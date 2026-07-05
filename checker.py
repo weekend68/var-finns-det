@@ -266,12 +266,13 @@ def polling_loop(prev_in_stock):
                     updated_products.append({**product, "pharmacies": [], "error": error})
             else:
                 current_glns = {ph["name"] for ph in pharmacies}
-                prev_glns = prev_in_stock.get(npl_pack_id, set())
+                prev_glns = prev_in_stock.get(npl_pack_id)  # None = aldrig sedd, set() = känt restnoterad
 
                 if pharmacies:
                     _consecutive_zeros.pop(npl_pack_id, None)
-                    # Alert when going from confirmed 0 → >0
-                    if not prev_glns:
+                    # Alert only when previously confirmed out of stock (prev_glns == set())
+                    # prev_glns is None means first poll for this product — establish baseline silently
+                    if prev_glns is not None and not prev_glns:
                         newly_available.append((name, pharmacies, npl_pack_id))
                     prev_in_stock[npl_pack_id] = current_glns
                 else:
