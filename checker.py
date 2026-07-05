@@ -255,6 +255,9 @@ def polling_loop(pharmacy_map, prev_in_stock):
                 if product in PRODUCTS:
                     updated_products.append({**product, "pharmacies": pharmacies, "error": None})
 
+        notified_ids = {nid for _, _, nid in newly_available}
+        _log_poll(now, all_products, result_map, notified_ids, len(gln_codes))
+
         if newly_available:
             if os.getenv("RESEND_API_KEY") and os.getenv("NOTIFY_EMAIL"):
                 try:
@@ -364,6 +367,32 @@ def _send_renewal_reminders():
                     print(f"  Förlängningsmejl till {sub['email']} misslyckades: {e}")
     except Exception as e:
         print(f"  _send_renewal_reminders fel: {e}")
+
+
+def _log_poll(polled_at, all_products, result_map, notified_ids, total_glns):
+    try:
+        from db import get_db
+        ts = polled_at.strftime("%Y-%m-%dT%H:%M:%S")
+        with get_db() as db:
+            for product in all_products:
+                npl = product["npl_pack_id"]
+                _, pharmacies, error = result_map.get(npl, (None, [], None))
+                if error:
+                    continue
+                db.execute(
+                    "INSERT INTO poll_log (polled_at, npl_pack_id, name, pharmacy_count, "
+                    "glns_checked, notified) VALUES (?, ?, ?, ?, ?, ?)",
+                    [ts, npl, product["name"], len(pharmacies), total_glns,
+                     1 if npl in notified_ids else 0],
+                )
+            # Keep rolling window of 2000 rows
+            db.execute(
+                "DELETE FROM poll_log WHERE id NOT IN "
+                "(SELECT id FROM poll_log ORDER BY id DESC LIMIT 2000)"
+            )
+            db.commit()
+    except Exception as e:
+        print(f"  Poll-loggfel: {e}")
 
 
 def start_polling():

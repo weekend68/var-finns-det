@@ -51,6 +51,18 @@ CREATE TABLE IF NOT EXISTS daily_mail_count (
     date  TEXT PRIMARY KEY,
     count INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS poll_log (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    polled_at      TEXT NOT NULL,
+    npl_pack_id    TEXT NOT NULL,
+    name           TEXT NOT NULL,
+    pharmacy_count INTEGER NOT NULL,
+    glns_checked   INTEGER NOT NULL DEFAULT 0,
+    notified       INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS poll_log_at ON poll_log (polled_at DESC);
 """
 
 _SEED = """

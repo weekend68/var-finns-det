@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pollhistorik — medicinstatus.se</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #222;
+           min-height: 100vh; }
+    .hero { background: #0D1B2A; border-left: 5px solid #22D3A5;
+            padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; }
+    .hero a { color: #22D3A5; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+    .hero h1 { color: #EEF4F8; font-size: 1rem; font-weight: 400; }
+    main { padding: 1.25rem 1.5rem; max-width: 860px; }
+    .cycle { background: #fff; border-radius: 8px; margin-bottom: 0.75rem;
+             box-shadow: 0 1px 3px rgba(0,0,0,.07); overflow: hidden; }
+    .cycle-header { padding: 0.5rem 1rem; background: #f8fafb;
+                    border-bottom: 1px solid #eee; font-size: 0.78rem;
+                    color: #666; font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    td, th { padding: 0.35rem 1rem; text-align: left; border-bottom: 1px solid #f5f5f5; }
+    tr:last-child td { border-bottom: none; }
+    th { color: #999; font-weight: 600; font-size: 0.75rem;
+         text-transform: uppercase; letter-spacing: .04em; background: #fafafa; }
+    .count { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .count.ok  { color: #2a7d2a; }
+    .count.out { color: #c0392b; }
+    .delta { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+    .delta.up   { color: #2a7d2a; }
+    .delta.down { color: #c0392b; }
+    .delta.flat { color: #aaa; }
+    .notif { color: #22D3A5; font-size: 0.75rem; font-weight: 600; }
+    .coverage { font-size: 0.72rem; color: #bbb; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <a href="/">medicinstatus.se</a>
+    <h1>/ Pollhistorik</h1>
+  </header>
+  <main>
+    {% if not cycles %}
+      <p style="color:#888;padding:2rem 0">Inga pollresultat ännu — börjar logga vid nästa koll.</p>
+    {% endif %}
+    {% for ts, products in cycles %}
+    <div class="cycle">
+      <div class="cycle-header">{{ ts.replace("T", " ") }}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Läkemedel</th>
+            <th>Apotek</th>
+            <th>Δ</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in products %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>
+              <span class="count {{ 'ok' if p.count > 0 else 'out' }}">
+                {{ p.count }}
+              </span>
+              {% if p.checked > 0 %}
+              <span class="coverage">/ {{ p.checked }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if p.delta is not none %}
+                {% if p.delta > 0 %}
+                  <span class="delta up">+{{ p.delta }}</span>
+                {% elif p.delta < 0 %}
+                  <span class="delta down">{{ p.delta }}</span>
+                {% else %}
+                  <span class="delta flat">—</span>
+                {% endif %}
+              {% endif %}
+            </td>
+            <td>
+              {% if p.notified %}<span class="notif">✉ notis</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </main>
+</body>
+</html>

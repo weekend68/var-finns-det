@@ -118,11 +118,13 @@ def create_app():
     from routes.unsubscribe import bp as unsubscribe_bp
     from routes.extend import bp as extend_bp
     from routes.search import bp as search_bp
+    from routes.log import bp as log_bp
     app.register_blueprint(subscribe_bp)
     app.register_blueprint(manage_bp)
     app.register_blueprint(unsubscribe_bp)
     app.register_blueprint(extend_bp)
     app.register_blueprint(search_bp)
+    app.register_blueprint(log_bp)
 
     if not _polling_started.is_set():
         _polling_started.set()
