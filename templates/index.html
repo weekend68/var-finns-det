@@ -60,10 +60,11 @@
     /* main */
     main { flex: 1; padding: 1.5rem; }
     .meta { font-size: 0.8rem; color: #888; margin-bottom: 1.25rem; }
-    .staleness-banner { max-width: 720px; padding: 0.6rem 1rem; border-radius: 6px;
-                         font-size: 0.85rem; margin-bottom: 1.25rem; display: flex;
+    .staleness-banner { display: none; max-width: 720px; padding: 0.6rem 1rem; border-radius: 6px;
+                         font-size: 0.85rem; margin-bottom: 1.25rem;
                          justify-content: space-between; align-items: center;
                          gap: 1rem; flex-wrap: wrap; }
+    .staleness-banner.is-visible { display: flex; }
     .staleness-banner a { color: inherit; font-weight: 600; text-decoration: underline; white-space: nowrap; }
     .staleness-1h { background: #fff8e6; color: #7a5c00; border: 1px solid #f0d98c; }
     .staleness-3h { background: #fff0e0; color: #8a4b00; border: 1px solid #f0b98c; }
@@ -228,17 +229,15 @@
       <p class="meta">
         Uppdaterad: {{ snap.last_check[11:16] if snap.last_check else '—' }}
       </p>
-      {% if staleness %}
-      <div class="staleness-banner staleness-{{ staleness }}">
-        <span>
+      <div id="staleness-banner" class="staleness-banner{{ ' is-visible staleness-' + staleness if staleness else '' }}">
+        <span id="staleness-text">
           {% if staleness == '1d' %}⚠️ Informationen är minst ett dygn gammal.
           {% elif staleness == '3h' %}⚠️ Informationen är mer än tre timmar gammal.
-          {% else %}ℹ️ Informationen är mer än en timme gammal.
+          {% elif staleness == '1h' %}ℹ️ Informationen är mer än en timme gammal.
           {% endif %}
         </span>
         <a href="/">Ladda om för färsk information →</a>
       </div>
-      {% endif %}
       <h2 class="section-heading">Ofta eftersökta läkemedel</h2>
 
       {% for p in snap.products %}
@@ -486,6 +485,32 @@
         umami.track('bevaka-klick', { läkemedel: name.trim() });
       }
     });
+
+    // Periodically re-check freshness in the background so a long-open tab's
+    // staleness banner stays accurate without a full page reload (and without
+    // generating a pageview — this is a plain fetch, not a navigation).
+    const STALENESS_MESSAGES = {
+      '1h': 'ℹ️ Informationen är mer än en timme gammal.',
+      '3h': '⚠️ Informationen är mer än tre timmar gammal.',
+      '1d': '⚠️ Informationen är minst ett dygn gammal.',
+    };
+
+    function applyStaleness(tier) {
+      const banner = document.getElementById('staleness-banner');
+      const text = document.getElementById('staleness-text');
+      if (!banner || !text) return;
+      banner.classList.remove('is-visible', 'staleness-1h', 'staleness-3h', 'staleness-1d');
+      if (!tier) return;
+      banner.classList.add('is-visible', 'staleness-' + tier);
+      text.textContent = STALENESS_MESSAGES[tier] || '';
+    }
+
+    setInterval(function () {
+      fetch('/healthz')
+        .then(r => r.json())
+        .then(data => applyStaleness(data.staleness))
+        .catch(() => {});
+    }, 5 * 60 * 1000);
   })();
   </script>
 

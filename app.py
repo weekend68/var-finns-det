@@ -69,7 +69,14 @@ def create_app():
     def healthz():
         with checker.state_lock:
             status = checker.state.get("status", "unknown")
-        return {"status": status, "polls_done": checker.state.get("polls_done", 0)}
+            polls_done = checker.state.get("polls_done", 0)
+            last_check = checker.state.get("last_check")
+        return {
+            "status": status,
+            "polls_done": polls_done,
+            "last_check": last_check,
+            "staleness": checker.staleness_tier(last_check),
+        }
 
     @app.route("/privacy")
     def privacy():
