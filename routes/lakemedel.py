@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Blueprint, redirect, render_template, request
 
 import checker
+import fass
 from db import get_db, get_medication, is_medication_indexable
 from pharmacy_grouping import group_pharmacies_by_omrade, normalize_omrade
 from slugs import slugify_medication
@@ -100,7 +101,21 @@ def lakemedel(id_slug):
     with get_db() as db:
         med = get_medication(db, npl_pack_id)
         if not med or med["name"] == npl_pack_id:
-            return not_found
+            # Row missing or still a placeholder -- this route must work from
+            # any entry point (a race with /api/stock's own backfill, a fresh
+            # deploy with no poll cycle yet, a notification email, a pasted
+            # URL), so try a live Fass lookup instead of giving up immediately.
+            real_name = fass.lookup_name(npl_pack_id)
+            if not real_name:
+                return not_found
+            db.execute(
+                "INSERT INTO medications (npl_pack_id, name) VALUES (?, ?) "
+                "ON CONFLICT(npl_pack_id) DO UPDATE SET name=excluded.name "
+                "WHERE medications.name = medications.npl_pack_id",
+                [npl_pack_id, real_name],
+            )
+            db.commit()
+            med = get_medication(db, npl_pack_id)
 
         canonical_slug = slugify_medication(med["name"], med["strength"], med["form"])
         if given_slug != canonical_slug:

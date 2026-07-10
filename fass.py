@@ -111,6 +111,32 @@ def _db_search(q):
         return []
 
 
+def lookup_name(npl_pack_id):
+    """Best-effort live lookup of a medication's real name from Fass, for
+    when a medications row is missing/placeholder and we only have the
+    14-digit npl_pack_id (e.g. no ?name= was ever supplied)."""
+    try:
+        # Strategy 1: search by the npl_pack_id directly (works if Fass indexes by ID)
+        results = _fass_search(npl_pack_id)
+        if results:
+            return results[0]["name"]
+    except Exception:
+        pass
+    try:
+        # Strategy 2: call the package endpoint with npl_pack_id as npl_id
+        # (returns list; items may include doseForm/tradeName)
+        data = _proxy_get(f"package/{npl_pack_id}")
+        items = data if isinstance(data, list) else ([data] if isinstance(data, dict) else [])
+        for item in items:
+            trade = item.get("tradeName") or item.get("name") or ""
+            strength = item.get("strength") or ""
+            if trade:
+                return f"{trade} {strength}".strip() if strength else trade
+    except Exception:
+        pass
+    return None
+
+
 def get_packages(npl_id):
     """
     Get all available packagings for a medication (identified by nplId).
