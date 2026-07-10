@@ -47,17 +47,19 @@ _consecutive_zeros: dict = {}
 # with Lenzetto's 1×56/3×56 dos). A single-package strength (Estradot,
 # Estrogel) doesn't need it.
 PRODUCTS = [
-    {"name": "Estradot 25 mcg depotplåster",         "npl_pack_id": "20040113100574", "strength": "25 mcg/24 h",   "form": "depotplåster"},
-    {"name": "Estradot 37,5 mcg depotplåster",       "npl_pack_id": "20011130100489", "strength": "37,5 mcg/24 h", "form": "depotplåster"},
-    {"name": "Estradot 50 mcg depotplåster",         "npl_pack_id": "20011130100502", "strength": "50 mcg/24 h",   "form": "depotplåster"},
-    {"name": "Estradot 75 mcg depotplåster",         "npl_pack_id": "20011130100526", "strength": "75 mcg/24 h",   "form": "depotplåster"},
-    {"name": "Estradot 100 mcg depotplåster",        "npl_pack_id": "20011130100564", "strength": "100 mcg/24 h",  "form": "depotplåster"},
-    {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025", "strength": "0,75 mg/dos",   "form": "gel"},
-    {"name": "Lenzetto 1,53 mg/dos transdermal spray (1 × 56 dos)", "npl_pack_id": "20140320100036", "strength": "1,53 mg/dos", "form": "transdermal spray"},
-    {"name": "Lenzetto 1,53 mg/dos transdermal spray (3 × 56 dos)", "npl_pack_id": "20160407100353", "strength": "1,53 mg/dos", "form": "transdermal spray"},
-    {"name": "Divigel 0,5 mg gel", "npl_pack_id": "19961001100275", "strength": "0,5 mg/dos", "form": "gel"},
-    {"name": "Divigel 1 mg gel",   "npl_pack_id": "20001018100021", "strength": "1 mg/dos",   "form": "gel"},
+    {"name": "Estradot 25 mcg depotplåster",         "npl_pack_id": "20040113100574", "strength": "25 mcg/24 h",   "form": "depotplåster", "menopause_related": True},
+    {"name": "Estradot 37,5 mcg depotplåster",       "npl_pack_id": "20011130100489", "strength": "37,5 mcg/24 h", "form": "depotplåster", "menopause_related": True},
+    {"name": "Estradot 50 mcg depotplåster",         "npl_pack_id": "20011130100502", "strength": "50 mcg/24 h",   "form": "depotplåster", "menopause_related": True},
+    {"name": "Estradot 75 mcg depotplåster",         "npl_pack_id": "20011130100526", "strength": "75 mcg/24 h",   "form": "depotplåster", "menopause_related": True},
+    {"name": "Estradot 100 mcg depotplåster",        "npl_pack_id": "20011130100564", "strength": "100 mcg/24 h",  "form": "depotplåster", "menopause_related": True},
+    {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025", "strength": "0,75 mg/dos",   "form": "gel", "menopause_related": True},
+    {"name": "Lenzetto 1,53 mg/dos transdermal spray (1 × 56 dos)", "npl_pack_id": "20140320100036", "strength": "1,53 mg/dos", "form": "transdermal spray", "menopause_related": True},
+    {"name": "Lenzetto 1,53 mg/dos transdermal spray (3 × 56 dos)", "npl_pack_id": "20160407100353", "strength": "1,53 mg/dos", "form": "transdermal spray", "menopause_related": True},
+    {"name": "Divigel 0,5 mg gel", "npl_pack_id": "19961001100275", "strength": "0,5 mg/dos", "form": "gel", "menopause_related": True},
+    {"name": "Divigel 1 mg gel",   "npl_pack_id": "20001018100021", "strength": "1 mg/dos",   "form": "gel", "menopause_related": True},
 ]
+
+MENOPAUSE_RELATED_IDS = {p["npl_pack_id"] for p in PRODUCTS if p.get("menopause_related")}
 
 
 def staleness_tier(timestamp_str):

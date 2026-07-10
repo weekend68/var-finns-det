@@ -38,6 +38,7 @@ def _template_vars():
         show_limit=checker.SHOW_LIMIT,
         email_active=bool(os.getenv("RESEND_API_KEY")),
         staleness=checker.staleness_tier(snap.get("last_check")),
+        show_partner_guide=True,
         snap=snap,
     )
 

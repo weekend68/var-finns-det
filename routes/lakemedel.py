@@ -153,6 +153,7 @@ def lakemedel(id_slug):
         history=history,
         siblings=siblings,
         indexable=indexable,
+        show_partner_guide=npl_pack_id in checker.MENOPAUSE_RELATED_IDS,
         canonical_url=canonical_url,
         jsonld=jsonld,
         site_url=SITE_URL,

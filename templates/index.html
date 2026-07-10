@@ -81,6 +81,10 @@
     .card-label { font-size: 0.9rem; color: #555; margin-bottom: 0.75rem; }
     .card-label a { color: #1bb890; text-decoration: none; }
     .card-label a:hover { text-decoration: underline; }
+    .partner-guide p { font-size: 0.85rem; color: #555; line-height: 1.6; }
+    .partner-guide a { color: #1bb890; font-weight: 600; text-decoration: none; }
+    .partner-guide a:hover { text-decoration: underline; }
+    .partner-guide .disclosure { font-size: 0.8rem; color: #888; margin-top: 0.4rem; }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 0.5rem;
             overflow-x: auto; display: block; }
     th { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 2px solid #eee;
@@ -306,6 +310,18 @@
       {% endfor %}
     {% endif %}
     </div><!-- #status-cards -->
+
+    {% if show_partner_guide %}
+    <div class="card partner-guide">
+      <h2 class="section-heading">Relaterad guide för partnern</h2>
+      <p>
+        Om du eller din partner upplever klimakteriesymtom kan det vara hjälpsamt för partnern
+        att veta mer om vad som pågår. På <a href="https://partnerguiden.se" target="_blank" rel="noopener" id="partner-guide-link">Partnerguiden</a>
+        finns en guide med tips och stöd för partnern till klimakteriekvinnor.
+      </p>
+      <p class="disclosure">(Partnerguiden.se drivs av samma team som {{ site_name }}.)</p>
+    </div>
+    {% endif %}
   </main>
 
   <script>
@@ -483,6 +499,13 @@
         const card = btn.closest('.card, .pkg-item');
         const name = card ? (card.querySelector('h2, .pkg-name') || {}).textContent : '';
         umami.track('bevaka-klick', { läkemedel: name.trim() });
+      }
+    });
+
+    // Track partner-guide clicks
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('#partner-guide-link') && typeof umami !== 'undefined') {
+        umami.track('partnerguiden-klick', { sida: 'startsidan' });
       }
     });
 

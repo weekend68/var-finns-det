@@ -82,6 +82,10 @@
     .siblings a:hover { border-color: #22D3A5; }
     .faq dt { font-weight: 600; font-size: 0.9rem; color: #0D1B2A; margin-top: 0.75rem; }
     .faq dd { font-size: 0.85rem; color: #555; margin-top: 0.2rem; line-height: 1.5; }
+    .partner-guide p { font-size: 0.85rem; color: #555; line-height: 1.6; }
+    .partner-guide a { color: #1bb890; font-weight: 600; text-decoration: none; }
+    .partner-guide a:hover { text-decoration: underline; }
+    .partner-guide .disclosure { font-size: 0.8rem; color: #888; margin-top: 0.4rem; }
     .steps { color: #6a90a8; font-size: 0.85rem; line-height: 1.8; }
     .steps strong { color: #0D1B2A; }
     footer { max-width: 720px; margin: 1rem 1.5rem 1.5rem; padding-top: 1rem;
@@ -93,6 +97,12 @@
   document.addEventListener("DOMContentLoaded", function() {
     if (typeof umami === "undefined") return;
     umami.track();
+    var link = document.getElementById("partner-guide-link");
+    if (link) {
+      link.addEventListener("click", function() {
+        umami.track("partnerguiden-klick", { sida: "lakemedel" });
+      });
+    }
   });
   </script>
 </head>
@@ -253,6 +263,18 @@
         ⏳ Bevakningen gäller i 30 dagar och kan förlängas med ett klick.
       </p>
     </div>
+
+    {% if show_partner_guide %}
+    <div class="card partner-guide">
+      <h2 class="section-heading">Relaterad guide för partnern</h2>
+      <p>
+        Om du eller din partner upplever klimakteriesymtom kan det vara hjälpsamt för partnern
+        att veta mer om vad som pågår. På <a href="https://partnerguiden.se" target="_blank" rel="noopener" id="partner-guide-link">Partnerguiden</a>
+        finns en guide med tips och stöd för partnern till klimakteriekvinnor.
+      </p>
+      <p class="disclosure">(Partnerguiden.se drivs av samma team som {{ site_name }}.)</p>
+    </div>
+    {% endif %}
 
     <div class="card">
       <h2 class="section-heading">Vanliga frågor</h2>
