@@ -20,10 +20,6 @@ def _template_vars():
         "Lagerstatus för alla läkemedel på Sveriges apotek. "
         "Är mitt läkemedel restnoterat? Bevaka det — få e-post när det finns igen."
     )
-    if SITE_NAME.endswith(".se"):
-        name_base, name_tld = SITE_NAME[:-3], ".se"
-    else:
-        name_base, name_tld = SITE_NAME, ""
 
     with checker.state_lock:
         snap = json.loads(json.dumps(checker.state))
@@ -34,9 +30,6 @@ def _template_vars():
         p["lakemedel_url"] = f"/lakemedel/{p['npl_pack_id']}"
 
     return dict(
-        site_name=SITE_NAME,
-        name_base=name_base,
-        name_tld=name_tld,
         canonical=SITE_URL,
         og_image=og_image,
         desc=desc,
@@ -53,7 +46,11 @@ def create_app():
 
     @app.context_processor
     def inject_globals():
-        return dict(site_name=SITE_NAME)
+        if SITE_NAME.endswith(".se"):
+            name_base, name_tld = SITE_NAME[:-3], ".se"
+        else:
+            name_base, name_tld = SITE_NAME, ""
+        return dict(site_name=SITE_NAME, name_base=name_base, name_tld=name_tld)
 
     init_db()
     checker.seed_products()
