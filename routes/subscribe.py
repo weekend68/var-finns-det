@@ -6,6 +6,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 import checker
 import mail
 from db import create_token, get_db, get_or_create_token
+from slugs import slugify_medication
 
 bp = Blueprint("subscribe", __name__)
 SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
@@ -50,7 +51,9 @@ def subscribe():
         return form_error("Inget läkemedel valt.")
 
     with get_db() as db:
-        med = db.execute("SELECT name FROM medications WHERE npl_pack_id=?", [npl_pack_id]).fetchone()
+        med = db.execute(
+            "SELECT name, strength, form FROM medications WHERE npl_pack_id=?", [npl_pack_id]
+        ).fetchone()
         if not med:
             return render_template("message.html",
                 title="Okänt läkemedel",
@@ -99,8 +102,12 @@ def subscribe():
 
         db.commit()
 
+    medication_url = (
+        f"{SITE_URL}/lakemedel/{npl_pack_id}-{slugify_medication(med['name'], med['strength'], med['form'])}"
+        if SITE_URL else None
+    )
     try:
-        mail.send_confirmation(email, token, SITE_URL)
+        mail.send_confirmation(email, token, SITE_URL, medication_name=med["name"], medication_url=medication_url)
     except Exception as e:
         print(f"  Bekräftelsemejl misslyckades: {e}")
         return render_template("message.html",

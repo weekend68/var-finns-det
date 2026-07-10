@@ -37,16 +37,45 @@ _pharmacy_map: dict = {}
 # caused by transient API failures.
 _consecutive_zeros: dict = {}
 
+# Single source of truth for the hardcoded "always polled, always on the
+# homepage" medications. seed_products() (called once at startup) writes
+# these into the medications table — no separately-maintained DB seed to
+# drift out of sync (see the Lenzetto bug this replaced).
+#
+# Naming convention: include the pack size in "name" only when a medication
+# has more than one on-market package per strength (ambiguous otherwise, as
+# with Lenzetto's 1×56/3×56 dos). A single-package strength (Estradot,
+# Estrogel) doesn't need it.
 PRODUCTS = [
-    {"name": "Estradot 25 mcg depotplåster",         "npl_pack_id": "20040113100574"},
-    {"name": "Estradot 37,5 mcg depotplåster",       "npl_pack_id": "20011130100489"},
-    {"name": "Estradot 50 mcg depotplåster",         "npl_pack_id": "20011130100502"},
-    {"name": "Estradot 75 mcg depotplåster",         "npl_pack_id": "20011130100526"},
-    {"name": "Estradot 100 mcg depotplåster",        "npl_pack_id": "20011130100564"},
-    {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025"},
-    {"name": "Lenzetto 1,53 mg/dos transdermal spray (1 × 56 dos)", "npl_pack_id": "20140320100036"},
-    {"name": "Lenzetto 1,53 mg/dos transdermal spray (3 × 56 dos)", "npl_pack_id": "20160407100353"},
+    {"name": "Estradot 25 mcg depotplåster",         "npl_pack_id": "20040113100574", "strength": "25 mcg/24 h",   "form": "depotplåster"},
+    {"name": "Estradot 37,5 mcg depotplåster",       "npl_pack_id": "20011130100489", "strength": "37,5 mcg/24 h", "form": "depotplåster"},
+    {"name": "Estradot 50 mcg depotplåster",         "npl_pack_id": "20011130100502", "strength": "50 mcg/24 h",   "form": "depotplåster"},
+    {"name": "Estradot 75 mcg depotplåster",         "npl_pack_id": "20011130100526", "strength": "75 mcg/24 h",   "form": "depotplåster"},
+    {"name": "Estradot 100 mcg depotplåster",        "npl_pack_id": "20011130100564", "strength": "100 mcg/24 h",  "form": "depotplåster"},
+    {"name": "Estrogel transdermal gel 0,75 mg/dos", "npl_pack_id": "20181129100025", "strength": "0,75 mg/dos",   "form": "gel"},
+    {"name": "Lenzetto 1,53 mg/dos transdermal spray (1 × 56 dos)", "npl_pack_id": "20140320100036", "strength": "1,53 mg/dos", "form": "transdermal spray"},
+    {"name": "Lenzetto 1,53 mg/dos transdermal spray (3 × 56 dos)", "npl_pack_id": "20160407100353", "strength": "1,53 mg/dos", "form": "transdermal spray"},
 ]
+
+
+def seed_products():
+    """Ensure every PRODUCTS entry has a matching, up-to-date medications row.
+    Called once at startup, after init_db(). PRODUCTS is the single source of
+    truth here — this always overwrites name/strength/form for these ids, so
+    the DB can never drift out of sync with the hardcoded list."""
+    try:
+        from db import get_db
+        with get_db() as db:
+            for p in PRODUCTS:
+                db.execute(
+                    "INSERT INTO medications (npl_pack_id, name, strength, form) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(npl_pack_id) DO UPDATE SET "
+                    "name=excluded.name, strength=excluded.strength, form=excluded.form",
+                    [p["npl_pack_id"], p["name"], p.get("strength"), p.get("form")],
+                )
+            db.commit()
+    except Exception as e:
+        print(f"  seed_products fel: {e}")
 
 
 state = {
@@ -55,8 +84,26 @@ state = {
     "next_check": None,
     "polls_done": 0,
     "products": [{**p, "pharmacies": [], "error": None} for p in PRODUCTS],
+    # Latest successful poll result for EVERY actively-polled product (hardcoded
+    # PRODUCTS + active subscriptions), keyed by npl_pack_id -> {"pharmacies", "checked_at"}.
+    # Superset of "products" above, which stays PRODUCTS-only for the curated
+    # homepage display. This is what get_stock_info() checks first.
+    "all_stock": {},
 }
 state_lock = threading.Lock()
+
+# Short-lived cache for live (non-actively-polled) stock checks, keyed by
+# npl_pack_id -> (checked_at_unix, pharmacies). Shares TTL with POLL_INTERVAL
+# so a burst of page views (human or bot) never checks Fass more often than
+# the main polling loop itself does. Used by get_stock_info() for medications
+# nobody is actively polling yet (e.g. only ever searched, never subscribed).
+_live_stock_cache: dict = {}
+
+# Per-npl_pack_id locks guarding the live-check cache miss path, so concurrent
+# requests for the same never-before-cached medication don't each independently
+# hit the rate-limit-sensitive Fass API (thundering herd).
+_stock_fetch_locks: dict = {}
+_stock_fetch_locks_lock = threading.Lock()
 
 
 def now_local():
@@ -148,7 +195,12 @@ def fetch_all_pharmacies():
                 postal = d.get("postalcode", "")
                 city   = d.get("city", "")
                 addr = f"{street}, {postal} {city}".strip(", ")
-                pharmacy_map[gln] = {"name": d.get("name", gln), "address": addr}
+                pharmacy_map[gln] = {
+                    "name": d.get("name", gln),
+                    "address": addr,
+                    "postalcode": postal,
+                    "city": city,
+                }
         total   = data.get("totalMatching", 0)
         fetched = page * page_size + len(docs)
         if fetched >= total or not docs:
@@ -230,6 +282,64 @@ def _get_subscription_products():
         return []
 
 
+def _lock_for(npl_pack_id):
+    with _stock_fetch_locks_lock:
+        lock = _stock_fetch_locks.get(npl_pack_id)
+        if lock is None:
+            lock = threading.Lock()
+            _stock_fetch_locks[npl_pack_id] = lock
+        return lock
+
+
+def get_stock_info(npl_pack_id, sample_size=300):
+    """
+    Current stock for npl_pack_id, preferring the freshest source available:
+    1. state["all_stock"] — populated every poll cycle for every actively
+       polled product (hardcoded PRODUCTS + active subscriptions).
+    2. A short-lived, per-process cache of a live sampled check (TTL =
+       POLL_INTERVAL), used for medications nobody is actively polling yet.
+
+    Returns {"pharmacies": [...], "checked_at": "YYYY-MM-DD HH:MM" or None,
+    "source": "polled"|"live_cache"|"live"|"stale"|"none"}. Raises on a live
+    check failure with no usable cache — callers decide how to degrade.
+    """
+    with state_lock:
+        hit = state["all_stock"].get(npl_pack_id)
+    if hit is not None:
+        return {"pharmacies": hit["pharmacies"], "checked_at": hit["checked_at"], "source": "polled"}
+
+    ttl = POLL_INTERVAL
+    cached = _live_stock_cache.get(npl_pack_id)
+    if cached and (time.time() - cached[0]) < ttl:
+        checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
+        return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache"}
+
+    with _lock_for(npl_pack_id):
+        # Re-check inside the lock — another thread may have just populated it
+        # while we were waiting, in which case skip the redundant Fass call.
+        cached = _live_stock_cache.get(npl_pack_id)
+        if cached and (time.time() - cached[0]) < ttl:
+            checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
+            return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache"}
+
+        pharmacy_map = _pharmacy_map
+        if not pharmacy_map:
+            return {"pharmacies": [], "checked_at": None, "source": "none"}
+        sample_glns = list(pharmacy_map.keys())[:sample_size]
+        try:
+            pharmacies = check_stock(npl_pack_id, sample_glns, pharmacy_map)
+        except Exception:
+            if cached:
+                checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
+                return {"pharmacies": cached[1], "checked_at": checked_at, "source": "stale"}
+            raise
+
+        checked_ts = time.time()
+        _live_stock_cache[npl_pack_id] = (checked_ts, pharmacies)
+        checked_at = datetime.fromtimestamp(checked_ts, tz=TZ).strftime("%Y-%m-%d %H:%M")
+        return {"pharmacies": pharmacies, "checked_at": checked_at, "source": "live"}
+
+
 def polling_loop(prev_in_stock):
     while True:
         t0 = time.time()
@@ -261,6 +371,8 @@ def polling_loop(prev_in_stock):
 
         newly_available = []
         updated_products = []
+        all_stock_updates = {}
+        checked_at_str = now.strftime("%Y-%m-%d %H:%M")
 
         for product in all_products:
             npl_pack_id = product["npl_pack_id"]
@@ -271,6 +383,11 @@ def polling_loop(prev_in_stock):
                 if product in PRODUCTS:
                     updated_products.append({**product, "pharmacies": [], "error": error})
             else:
+                # Populate for ALL actively-polled products (not just the
+                # hardcoded PRODUCTS), so get_stock_info()'s fast path also
+                # covers subscription-only medications — exactly the ones
+                # that qualify as SEO-indexable, per db.is_medication_indexable.
+                all_stock_updates[npl_pack_id] = {"pharmacies": pharmacies, "checked_at": checked_at_str}
                 current_glns = {ph["name"] for ph in pharmacies}
                 prev_glns = prev_in_stock.get(npl_pack_id)  # None = aldrig sedd, set() = känt restnoterad
 
@@ -312,6 +429,7 @@ def polling_loop(prev_in_stock):
             state["next_check"] = next_check.strftime("%H:%M:%S")
             state["polls_done"] += 1
             state["products"] = updated_products
+            state["all_stock"].update(all_stock_updates)
 
         save_cache(prev_in_stock)
         print(f"  Koll tog {elapsed:.0f}s, sover {sleep_time:.0f}s till nästa")
@@ -321,13 +439,23 @@ def polling_loop(prev_in_stock):
 def _notify_subscribers(npl_pack_id, medication_name, pharmacies):
     try:
         import mail
-        from db import get_db, get_or_create_token
+        from db import get_db, get_medication, get_or_create_token
+        from slugs import slugify_medication
     except ImportError:
         return
 
     site_url = os.getenv("SITE_URL", "").rstrip("/")
     try:
         with get_db() as db:
+            # Build the deep link from the same (name, strength, form) fields
+            # routes/lakemedel.py uses for its canonical slug, so the emailed
+            # URL matches the canonical one and never needs a redirect.
+            medication_url = None
+            med = get_medication(db, npl_pack_id)
+            if site_url and med:
+                slug = slugify_medication(med["name"], med["strength"], med["form"])
+                medication_url = f"{site_url}/lakemedel/{npl_pack_id}-{slug}"
+
             subs = db.execute("""
                 SELECT s.id, s.expires_at, s.last_notified_at, sub.email, sub.id AS sub_id
                 FROM subscriptions s
@@ -351,6 +479,7 @@ def _notify_subscribers(npl_pack_id, medication_name, pharmacies):
                     mail.send_notification(
                         sub["email"], medication_name, pharmacies,
                         unsub_token, manage_token, sub["expires_at"], site_url,
+                        medication_url=medication_url,
                     )
                     db.execute(
                         "UPDATE subscriptions SET last_notified_at=datetime('now') WHERE id=?",

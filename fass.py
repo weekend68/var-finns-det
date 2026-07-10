@@ -149,7 +149,7 @@ def check_stock(npl_pack_id, gln_codes, pharmacy_map):
     """
     Check stock for nplPackId across a list of GLN codes.
     Returns list of in-stock pharmacies:
-      {"name": str, "address": str, "status": str, "exchangeable": bool}
+      {"name": str, "address": str, "postalcode": str, "gln": str, "status": str, "exchangeable": bool}
 
     Batches GLN codes in groups of 50. Retries up to 3 times on transient
     errors; 400s are broken into sub-batches of 10 (unknown GLNs).
@@ -201,6 +201,8 @@ def check_stock(npl_pack_id, gln_codes, pharmacy_map):
             in_stock.append({
                 "name": ph.get("name", r["glnCode"]),
                 "address": ph.get("address", ""),
+                "postalcode": ph.get("postalcode", ""),
+                "gln": r["glnCode"],
                 "status": r["stockInformation"],
                 "exchangeable": r.get("exchangeableProductInStock", False),
             })

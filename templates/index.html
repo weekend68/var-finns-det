@@ -229,25 +229,25 @@
               <h2>🔴 {{ p.name }}{% if is_stale %} <span class="stale">(från cache)</span>{% endif %}</h2>
               <a class="btn-watch" href="/subscribe?npl={{ p.npl_pack_id }}">Bevaka</a>
             </div>
-            <p class="card-label">Fel: {{ p.error }}</p>
+            <p class="card-label">Fel: {{ p.error }} · <a href="{{ p.lakemedel_url }}">Mer info &amp; historik →</a></p>
           {% elif not pharmacies %}
             <div class="card-header">
               <h2>🔴 {{ p.name }}{% if is_stale %} <span class="stale">(från cache)</span>{% endif %}</h2>
               <a class="btn-watch" href="/subscribe?npl={{ p.npl_pack_id }}">Bevaka</a>
             </div>
-            <p class="card-label">Inte i lager (restnoterat)</p>
+            <p class="card-label">Inte i lager (restnoterat) · <a href="{{ p.lakemedel_url }}">Mer info &amp; historik →</a></p>
           {% elif pharmacies | selectattr("status", "equalto", "IN_STOCK") | list %}
             <div class="card-header">
               <h2>🟢 {{ p.name }}{% if is_stale %} <span class="stale">(från cache)</span>{% endif %}</h2>
               <a class="btn-watch" href="/subscribe?npl={{ p.npl_pack_id }}">Bevaka</a>
             </div>
-            <p class="card-label">{{ pharmacies | length }} apotek har varan</p>
+            <p class="card-label">{{ pharmacies | length }} apotek har varan · <a href="{{ p.lakemedel_url }}">Mer info &amp; historik →</a></p>
           {% else %}
             <div class="card-header">
               <h2>🟡 {{ p.name }}{% if is_stale %} <span class="stale">(från cache)</span>{% endif %}</h2>
               <a class="btn-watch" href="/subscribe?npl={{ p.npl_pack_id }}">Bevaka</a>
             </div>
-            <p class="card-label">{{ pharmacies | length }} apotek — få kvar</p>
+            <p class="card-label">{{ pharmacies | length }} apotek — få kvar · <a href="{{ p.lakemedel_url }}">Mer info &amp; historik →</a></p>
           {% endif %}
 
           {% if pharmacies %}
@@ -404,6 +404,7 @@
             <a class="btn-watch" href="/subscribe?npl=${esc(p.npl_pack_id)}">Bevaka</a>
           </div>
           <div class="ph-list" id="ph-${esc(p.npl_pack_id)}"></div>
+          <a href="/lakemedel/${esc(p.npl_pack_id)}" style="font-size:.78rem;color:#22D3A5;text-decoration:none">Mer info &amp; historik →</a>
         </div>`).join('');
 
       resultArea.innerHTML = `<div class="search-result-card">

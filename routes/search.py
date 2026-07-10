@@ -48,36 +48,26 @@ def api_packages():
 
 @bp.route("/api/stock/<npl_pack_id>")
 def api_stock(npl_pack_id):
-    # Return cached state first (fast path for monitored medications)
-    with checker.state_lock:
-        for p in checker.state.get("products", []):
-            if p.get("npl_pack_id") == npl_pack_id:
-                return jsonify({
-                    "npl_pack_id": npl_pack_id,
-                    "pharmacies": p.get("pharmacies", []),
-                    "cached": True,
-                })
-
-    # Live check against a sample of pharmacies (first 300 GLN codes)
-    pharmacy_map = checker._pharmacy_map
-    if not pharmacy_map:
-        return jsonify({"npl_pack_id": npl_pack_id, "pharmacies": [], "cached": False})
-
-    sample_glns = list(pharmacy_map.keys())[:300]
     try:
-        pharmacies = fass.check_stock(npl_pack_id, sample_glns, pharmacy_map)
+        stock = checker.get_stock_info(npl_pack_id)
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
-    med_name = request.args.get("name", "").strip()
-    _upsert_medication(npl_pack_id, med_name or None)
+    cached = stock["source"] == "polled"
+    if not cached:
+        # Live/live_cache/stale result — backfill a real medication name if
+        # one was supplied and the row doesn't have one yet.
+        med_name = request.args.get("name", "").strip()
+        _upsert_medication(npl_pack_id, med_name or None)
 
-    return jsonify({
+    resp = {
         "npl_pack_id": npl_pack_id,
-        "pharmacies": pharmacies,
-        "cached": False,
-        "note": f"Samplad koll på {len(sample_glns)} apotek — prenumerera för fullständig bevakning",
-    })
+        "pharmacies": stock["pharmacies"],
+        "cached": cached,
+    }
+    if not cached:
+        resp["note"] = "Samplad koll på apotek — prenumerera för fullständig bevakning"
+    return jsonify(resp)
 
 
 def _upsert_medication(npl_pack_id, name=None):

@@ -62,20 +62,26 @@ def _domain(site_url):
     return (site_url or "medicinstatus.se").replace("https://", "").replace("http://", "").rstrip("/")
 
 
-def send_confirmation(to, token, site_url):
+def send_confirmation(to, token, site_url, medication_name=None, medication_url=None):
     if not _within_daily_limit():
         return False
     domain = _domain(site_url)
     confirm_url = f"{site_url}/confirm/{token}"
-    body = (
+    intro = (
+        f"Du har anmält en bevakning på {domain} för {medication_name}.\n\n"
+        if medication_name else
         f"Du har anmält en bevakning på {domain}.\n\n"
-        f"Bekräfta din e-postadress inom 48 timmar:\n{confirm_url}\n\n"
-        "Om du inte gjort detta kan du ignorera detta mail.\n"
+    )
+    body = (
+        intro
+        + f"Bekräfta din e-postadress inom 48 timmar:\n{confirm_url}\n\n"
+        + (f"Se lagerstatus: {medication_url}\n\n" if medication_url else "")
+        + "Om du inte gjort detta kan du ignorera detta mail.\n"
     )
     return bool(_send_raw(to, f"Bekräfta din prenumeration på {domain}", body))
 
 
-def send_notification(to, medication_name, pharmacies, unsubscribe_token, manage_token, expires_at, site_url):
+def send_notification(to, medication_name, pharmacies, unsubscribe_token, manage_token, expires_at, site_url, medication_url=None):
     if not _within_daily_limit():
         return False
     lines = [f"• {ph['name']}" for ph in pharmacies[:20]]
@@ -83,6 +89,7 @@ def send_notification(to, medication_name, pharmacies, unsubscribe_token, manage
         lines.append(f"... och {len(pharmacies) - 20} fler apotek")
     body = (
         f"{medication_name} finns nu i lager på {len(pharmacies)} apotek i Sverige.\n\n"
+        + (f"Se lagerstatus och alla apotek: {medication_url}\n\n" if medication_url else "")
         + "\n".join(lines)
         + "\n\nRing apoteket innan du åker — lagret kan förändras snabbt.\n\n"
         f"Kontrollerat: {datetime.now(TZ).strftime('%Y-%m-%d %H:%M')}\n\n"

@@ -71,22 +71,10 @@ CREATE TABLE IF NOT EXISTS pharmacy_cache (
 );
 """
 
-_SEED = """
-INSERT OR IGNORE INTO medications (npl_pack_id, name, strength, form) VALUES
-    ('20040113100574', 'Estradot 25 mcg depotplåster',         '25 mcg/24 h', 'depotplåster'),
-    ('20011130100489', 'Estradot 37,5 mcg depotplåster',       '37,5 mcg/24 h', 'depotplåster'),
-    ('20011130100502', 'Estradot 50 mcg depotplåster',         '50 mcg/24 h', 'depotplåster'),
-    ('20011130100526', 'Estradot 75 mcg depotplåster',         '75 mcg/24 h', 'depotplåster'),
-    ('20011130100564', 'Estradot 100 mcg depotplåster',        '100 mcg/24 h', 'depotplåster'),
-    ('20181129100025', 'Estrogel transdermal gel 0,75 mg/dos', '0,75 mg/dos', 'gel');
-"""
-
-
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.executescript(_SCHEMA)
-    con.executescript(_SEED)
     con.commit()
     con.close()
 
@@ -111,6 +99,39 @@ def create_token(db, token_type, subscriber_id, subscription_id=None, ttl_hours=
         [token, token_type, subscriber_id, subscription_id, expires],
     )
     return token
+
+
+def get_medication(db, npl_pack_id):
+    return db.execute(
+        "SELECT npl_pack_id, npl_id, name, strength, form FROM medications WHERE npl_pack_id=?",
+        [npl_pack_id],
+    ).fetchone()
+
+
+def is_medication_indexable(db, npl_pack_id):
+    """A medication is only worth indexing (sitemap + index,follow) once it has
+    at least one confirmed subscription, ever — not merely having been searched.
+    Keeps Google's/bots' crawlable surface tied to proven demand instead of
+    growing unboundedly with every curious one-off search."""
+    row = db.execute(
+        "SELECT 1 FROM subscriptions s JOIN subscribers sub ON s.subscriber_id = sub.id "
+        "WHERE s.npl_pack_id = ? AND sub.confirmed_at IS NOT NULL LIMIT 1",
+        [npl_pack_id],
+    ).fetchone()
+    return row is not None
+
+
+def list_medications_for_sitemap(db):
+    """Medications qualifying for sitemap.xml — real name (not a placeholder
+    row) and at least one confirmed subscription ever."""
+    return db.execute(
+        "SELECT m.npl_pack_id, m.name, m.strength, m.form FROM medications m "
+        "WHERE m.name != m.npl_pack_id "
+        "AND EXISTS ("
+        "  SELECT 1 FROM subscriptions s JOIN subscribers sub ON s.subscriber_id = sub.id "
+        "  WHERE s.npl_pack_id = m.npl_pack_id AND sub.confirmed_at IS NOT NULL"
+        ")"
+    ).fetchall()
 
 
 def get_or_create_token(db, token_type, subscriber_id, subscription_id=None, ttl_hours=30 * 24):
