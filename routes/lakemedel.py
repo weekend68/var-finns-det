@@ -71,7 +71,7 @@ def _sibling_packages(db, med):
     """Other packages/strengths of the same medication. medications.npl_id is
     never populated by any current code path, so name-prefix matching on the
     trade name is the only DB-only signal available today."""
-    base = (med["name"] or "").split(" ")[0] if med["name"] else ""
+    base = (med["name"] or "").strip().split(" ")[0]
     if len(base) < 3:
         return []
     rows = db.execute(
@@ -110,27 +110,35 @@ def lakemedel(id_slug):
             # Row missing or still a placeholder -- this route must work from
             # any entry point (a race with /api/stock's own backfill, a fresh
             # deploy with no poll cycle yet, a notification email, a pasted
-            # URL). Try a live Fass lookup first; it reliably fails here
-            # though, since Fass's package/{id} endpoint only accepts
-            # product-level npl_ids, not package-level npl_pack_ids like
-            # this one -- so fall back to ?name=, which the search UI
-            # already knows at click time and passes along (same trust
-            # level as /api/stock's own ?name= backfill).
-            real_name = fass.lookup_name(npl_pack_id)
-            if not real_name:
-                given_name = request.args.get("name", "").strip()
-                if given_name and given_name != npl_pack_id:
-                    real_name = given_name
-            if not real_name:
-                return not_found
-            db.execute(
-                "INSERT INTO medications (npl_pack_id, name) VALUES (?, ?) "
-                "ON CONFLICT(npl_pack_id) DO UPDATE SET name=excluded.name "
-                "WHERE medications.name = medications.npl_pack_id",
-                [npl_pack_id, real_name],
-            )
-            db.commit()
-            med = get_medication(db, npl_pack_id)
+            # URL). Share checker's per-ID lock so a burst of concurrent
+            # visits to the same shared/never-before-seen link serializes
+            # into one Fass lookup instead of a thundering herd.
+            with checker.lock_for(npl_pack_id):
+                # Re-check inside the lock -- another request for this same
+                # medication may have just resolved it while we were waiting.
+                med = get_medication(db, npl_pack_id)
+                if not med or med["name"] == npl_pack_id:
+                    # Try a live Fass lookup first; it reliably fails here
+                    # though, since Fass's package/{id} endpoint only accepts
+                    # product-level npl_ids, not package-level npl_pack_ids
+                    # like this one -- so fall back to ?name=, which the
+                    # search UI already knows at click time and passes along
+                    # (same trust level as /api/stock's own ?name= backfill).
+                    real_name = fass.lookup_name(npl_pack_id)
+                    if not real_name:
+                        given_name = request.args.get("name", "").strip()
+                        if given_name and given_name != npl_pack_id:
+                            real_name = given_name
+                    if not real_name:
+                        return not_found
+                    db.execute(
+                        "INSERT INTO medications (npl_pack_id, name) VALUES (?, ?) "
+                        "ON CONFLICT(npl_pack_id) DO UPDATE SET name=excluded.name "
+                        "WHERE medications.name = medications.npl_pack_id",
+                        [npl_pack_id, real_name],
+                    )
+                    db.commit()
+                    med = get_medication(db, npl_pack_id)
 
         canonical_slug = slugify_medication(med["name"], med["strength"], med["form"])
         if given_slug != canonical_slug:
@@ -143,8 +151,14 @@ def lakemedel(id_slug):
     try:
         stock = checker.get_stock_info(npl_pack_id)
     except Exception:
-        stock = {"pharmacies": [], "checked_at": None}
+        stock = {"pharmacies": [], "checked_at": None, "source": "none"}
     pharmacies = stock["pharmacies"]
+    # "none" means we genuinely don't know yet (pharmacy register not loaded,
+    # or a live check failed with no cache to fall back on) -- must not be
+    # conflated with a confirmed-empty result, or we'd confidently tell
+    # users/Google a medication is out of stock everywhere when we simply
+    # failed to check it.
+    stock_unknown = stock.get("source") == "none"
     in_stock_now = len(pharmacies) > 0
     few_only = in_stock_now and not any(p["status"] == "IN_STOCK" for p in pharmacies)
 
@@ -153,19 +167,18 @@ def lakemedel(id_slug):
 
     canonical_url = f"{SITE_URL}/lakemedel/{npl_pack_id}-{canonical_slug}"
 
-    availability = "https://schema.org/OutOfStock"
-    if in_stock_now:
-        availability = "https://schema.org/LimitedAvailability" if few_only else "https://schema.org/InStock"
+    offer = {"@type": "Offer", "url": canonical_url}
+    if not stock_unknown:
+        if in_stock_now:
+            offer["availability"] = "https://schema.org/LimitedAvailability" if few_only else "https://schema.org/InStock"
+        else:
+            offer["availability"] = "https://schema.org/OutOfStock"
 
     jsonld = {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": med["name"],
-        "offers": {
-            "@type": "Offer",
-            "availability": availability,
-            "url": canonical_url,
-        },
+        "offers": offer,
     }
 
     return render_template(
@@ -179,6 +192,7 @@ def lakemedel(id_slug):
         rest=rest,
         in_stock_now=in_stock_now,
         few_only=few_only,
+        stock_unknown=stock_unknown,
         checked_at=stock["checked_at"],
         history=history,
         siblings=siblings,

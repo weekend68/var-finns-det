@@ -54,6 +54,7 @@
     .status-line.in { color: #2a7d2a; }
     .status-line.few { color: #b07d00; }
     .status-line.out { color: #c0392b; }
+    .status-line.unknown { color: #777; }
     .checked-at { font-size: 0.8rem; color: #888; margin-bottom: 0.75rem; }
     .btn-watch { display: inline-block; background: #22D3A5; color: #0D1B2A; font-weight: 700;
                  padding: 0.6rem 1.3rem; border-radius: 6px; text-decoration: none; font-size: 0.92rem; }
@@ -140,7 +141,9 @@
       <p class="subtitle">{{ [med.strength, med.form] | select | join(' · ') }}</p>
       {% endif %}
 
-      {% if in_stock_now %}
+      {% if stock_unknown %}
+        <p class="status-line unknown">⚪ Kunde inte kontrollera lagerstatus just nu</p>
+      {% elif in_stock_now %}
         {% if few_only %}
         <p class="status-line few">🟡 Få kvar — {{ pharmacies | length }} apotek</p>
         {% else %}
