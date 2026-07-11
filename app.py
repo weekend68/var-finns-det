@@ -21,13 +21,21 @@ def _template_vars():
         "Är mitt läkemedel restnoterat? Bevaka det — få e-post när det finns igen."
     )
 
+    # The homepage template only ever reads snap.status/last_check/products --
+    # never state["all_stock"] (which grows with every actively-polled
+    # medication). Copying just the small "products" list instead of the
+    # whole state dict avoids needlessly serializing that on every single
+    # homepage view while holding the same lock the poll loop needs.
     with checker.state_lock:
-        snap = json.loads(json.dumps(checker.state))
-    for p in snap.get("products", []):
+        status = checker.state["status"]
+        last_check = checker.state["last_check"]
+        products = json.loads(json.dumps(checker.state["products"]))
+    for p in products:
         # Bare npl_pack_id, no computed slug — routes/lakemedel.py 301-redirects
         # to the canonical slug itself, avoiding any risk of this link computing
         # a different slug than the route's own canonical calculation.
         p["lakemedel_url"] = f"/lakemedel/{p['npl_pack_id']}"
+    snap = {"status": status, "last_check": last_check, "products": products}
 
     return dict(
         canonical=SITE_URL,
@@ -37,7 +45,7 @@ def _template_vars():
         product_count=len(checker.PRODUCTS),
         show_limit=checker.SHOW_LIMIT,
         email_active=bool(os.getenv("RESEND_API_KEY")),
-        staleness=checker.staleness_tier(snap.get("last_check")),
+        staleness=checker.staleness_tier(last_check),
         show_partner_guide=True,
         snap=snap,
     )
