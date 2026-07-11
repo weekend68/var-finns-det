@@ -1,3 +1,4 @@
+{%- import "_macros.html" as macros -%}
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -166,7 +167,7 @@
             {% for ph in list[:limit] %}
             <tr>
               <td>{{ ph.name }}{% if ph.address %} <span style="color:#aaa">— {{ ph.address }}</span>{% endif %}</td>
-              <td class="status {{ ph.status | lower }}">{% if ph.status == 'IN_STOCK' %}I lager{% elif ph.status == 'FEW_IN_STOCK' %}Få kvar{% else %}{{ ph.status }}{% endif %}</td>
+              <td class="status {{ ph.status | lower }}">{{ macros.pharmacy_status(ph.status) }}</td>
               <td>{% if ph.exchangeable %}✓{% endif %}</td>
             </tr>
             {% endfor %}
@@ -180,7 +181,7 @@
               {% for ph in list[limit:] %}
               <tr>
                 <td>{{ ph.name }}{% if ph.address %} <span style="color:#aaa">— {{ ph.address }}</span>{% endif %}</td>
-                <td class="status {{ ph.status | lower }}">{% if ph.status == 'IN_STOCK' %}I lager{% elif ph.status == 'FEW_IN_STOCK' %}Få kvar{% else %}{{ ph.status }}{% endif %}</td>
+                <td class="status {{ ph.status | lower }}">{{ macros.pharmacy_status(ph.status) }}</td>
                 <td>{% if ph.exchangeable %}✓{% endif %}</td>
               </tr>
               {% endfor %}

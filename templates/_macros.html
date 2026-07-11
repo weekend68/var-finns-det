@@ -1,0 +1,3 @@
+{% macro pharmacy_status(status) -%}
+{%- if status == 'IN_STOCK' -%}I lager{%- elif status == 'FEW_IN_STOCK' -%}Få kvar{%- else -%}{{ status }}{%- endif -%}
+{%- endmacro %}
