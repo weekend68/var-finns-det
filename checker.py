@@ -365,6 +365,7 @@ def polling_loop(prev_in_stock):
                 result_map[product["npl_pack_id"]] = (product, pharmacies, error)
 
         newly_available = []
+        currently_in_stock = []
         updated_products = []
         all_stock_updates = {}
         checked_at_str = now.strftime("%Y-%m-%d %H:%M")
@@ -390,10 +391,10 @@ def polling_loop(prev_in_stock):
 
                 if pharmacies:
                     _consecutive_zeros.pop(npl_pack_id, None)
-                    # Alert only when previously confirmed out of stock (prev_glns == set())
                     # prev_glns is None means first poll for this product — establish baseline silently
                     if prev_glns is not None and not prev_glns:
                         newly_available.append((name, pharmacies, npl_pack_id))
+                    currently_in_stock.append((name, pharmacies, npl_pack_id))
                     prev_in_stock[npl_pack_id] = current_glns
                 else:
                     # Require 2 consecutive zeros before clearing prev_in_stock.
@@ -401,6 +402,12 @@ def polling_loop(prev_in_stock):
                     zeros = _consecutive_zeros.get(npl_pack_id, 0) + 1
                     _consecutive_zeros[npl_pack_id] = zeros
                     if zeros >= 2:
+                        if prev_glns:
+                            # Was in stock, now confirmed out -- clear so a
+                            # FUTURE restock notifies subscribers again,
+                            # instead of last_notified_at from this restock
+                            # permanently blocking it.
+                            _reset_notified(npl_pack_id)
                         prev_in_stock[npl_pack_id] = set()
 
                 print(f"  {name}: {len(pharmacies)} i lager")
@@ -410,9 +417,11 @@ def polling_loop(prev_in_stock):
         notified_ids = {nid for _, _, nid in newly_available}
         _log_poll(now, all_products, result_map, notified_ids, len(gln_codes))
 
-        if newly_available:
-            for name, pharmacies, npl_pack_id in newly_available:
-                _notify_subscribers(npl_pack_id, name, pharmacies, checked_at_str)
+        # Check every currently-in-stock product for subscribers who still
+        # haven't been successfully notified -- not just ones newly
+        # transitioning this cycle (see _notify_subscribers' docstring for why).
+        for name, pharmacies, npl_pack_id in currently_in_stock:
+            _notify_subscribers(npl_pack_id, name, pharmacies, checked_at_str)
 
         _send_renewal_reminders()
         _cleanup_old_tokens()
@@ -472,7 +481,34 @@ def polling_loop(prev_in_stock):
         time.sleep(sleep_time)
 
 
+def _reset_notified(npl_pack_id):
+    """Clear last_notified_at for a product's active subscriptions once it's
+    confirmed out of stock again, so the NEXT restock notifies them anew --
+    otherwise last_notified_at from a past restock would permanently block
+    all future ones for that subscription."""
+    try:
+        from db import get_db
+        with get_db() as db:
+            db.execute(
+                "UPDATE subscriptions SET last_notified_at=NULL WHERE npl_pack_id=? AND active=1",
+                [npl_pack_id],
+            )
+            db.commit()
+    except Exception as e:
+        print(f"  _reset_notified fel: {e}")
+
+
 def _notify_subscribers(npl_pack_id, medication_name, pharmacies, checked_at):
+    """Called every poll cycle a product is in stock (not just the cycle a
+    restock transition is first detected) -- the SQL below only ever selects
+    subscriptions with last_notified_at IS NULL, so this is a cheap no-op
+    once everyone's been notified. That's what makes a failed send (e.g. the
+    daily mail cap) a genuine retry-next-cycle instead of a silent,
+    permanent miss: gating solely on the transition meant a cap-hit on the
+    very cycle the product restocked left last_notified_at NULL forever,
+    since prev_in_stock had already flipped to "seen in stock" and the
+    transition (the only thing that used to trigger this function) never
+    fires again until the product goes out of stock and back in."""
     try:
         import mail
         from db import get_db, get_medication, get_or_create_token
@@ -497,14 +533,10 @@ def _notify_subscribers(npl_pack_id, medication_name, pharmacies, checked_at):
                 WHERE s.npl_pack_id = ? AND s.active = 1
                   AND sub.confirmed_at IS NOT NULL AND sub.deleted_at IS NULL
                   AND s.expires_at > datetime('now')
+                  AND s.last_notified_at IS NULL
             """, [npl_pack_id]).fetchall()
 
             for sub in subs:
-                if sub["last_notified_at"]:
-                    last = datetime.fromisoformat(sub["last_notified_at"])
-                    if (datetime.utcnow() - last).total_seconds() < 3600:
-                        continue
-
                 unsub_token = get_or_create_token(db, "unsubscribe", sub["sub_id"], sub["id"])
                 manage_token = get_or_create_token(db, "manage", sub["sub_id"], None)
                 db.commit()
