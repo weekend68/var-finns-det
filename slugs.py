@@ -34,13 +34,15 @@ def slugify_medication(name, strength=None, form=None):
     combined = " ".join(p for p in parts if p)
     slug = _to_slug_part(combined)
 
-    # Dedupe repeated tokens (e.g. strength digits re-appearing because the
-    # name and strength fields format the same value slightly differently),
-    # keeping first occurrence to avoid ugly/keyword-stuffed slugs.
-    seen = set()
+    # Collapse CONSECUTIVE repeated tokens (e.g. strength digits re-appearing
+    # back-to-back because the name and strength fields format the same
+    # value slightly differently). Deliberately not a global dedup: a digit
+    # like "1" can legitimately reappear far apart for unrelated reasons
+    # (e.g. a package multiplier "1 x 56 dos" after a "1,53 mg" strength
+    # earlier in the same name) -- deduping those away as if they were the
+    # same token silently drops meaningful package info from the slug.
     tokens = []
     for tok in slug.split("-"):
-        if tok not in seen:
-            seen.add(tok)
+        if not tokens or tokens[-1] != tok:
             tokens.append(tok)
     return "-".join(tokens)
