@@ -69,15 +69,17 @@ Polling-loopen körs som en daemon-tråd i samma Gunicorn-process. En worker anv
 ├── app.py              # Flask app-factory, routes för /, /og-image.png, /privacy,
 │                       # /healthz, /robots.txt, /sitemap.xml
 ├── checker.py          # Polling-loop, PRODUCTS-lista, apoteksregister-cache
+├── config.py           # Delad konfiguration: SITE_URL, TTL-konstanter, token_url()
 ├── db.py               # SQLite-schema och init
 ├── fass.py             # Fass.se API-wrapper: sökning, förpackningar, lagerstatus
 ├── mail.py             # Resend-wrapper och e-postmallar
+├── responses.py        # Delade message.html-svar (t.ex. "ogiltig länk")
 ├── slugs.py            # Slug-generering för /lakemedel/-URL:er
 ├── pharmacy_grouping.py # Gruppering av apotek efter postnummer/närhet
 ├── routes/
 │   ├── search.py       # GET /api/search, /api/packages, /api/stock/:id
-│   ├── subscribe.py    # POST /subscribe, GET /confirm/:token
-│   ├── manage.py       # GET /manage/:token — hantera bevakningar
+│   ├── subscribe.py    # GET/POST /subscribe, GET /confirm/:token
+│   ├── manage.py       # GET /manage/:token, POST /manage/:token/remove
 │   ├── extend.py       # GET /extend/:token — förläng 30 dagar
 │   ├── unsubscribe.py  # GET /unsubscribe/:token
 │   ├── lakemedel.py    # GET /lakemedel/:id-slug — läkemedelssida
@@ -115,6 +117,7 @@ SQLite på Railway persistent volym (`/data/medicinstatus.db`).
 | `DB_PATH` | Sökväg till SQLite-databasen | `/data/medicinstatus.db` |
 | `POLL_INTERVAL` | Minuter mellan pollningar | `2` |
 | `CACHE_FILE` | Sökväg för tillstånds-cache | `/data/medicinstatus_cache.json` |
+| `DAILY_MAIL_LIMIT` | Max antal mejl/dygn mot Resends gräns | `90` |
 
 ---
 
