@@ -440,7 +440,7 @@
             <a class="btn-watch" href="/subscribe?npl=${esc(p.npl_pack_id)}">Bevaka</a>
           </div>
           <div class="ph-list" id="ph-${esc(p.npl_pack_id)}"></div>
-          <a href="/lakemedel/${esc(p.npl_pack_id)}" style="font-size:.78rem;color:#22D3A5;text-decoration:none">Mer info &amp; historik →</a>
+          <a href="/lakemedel/${esc(p.npl_pack_id)}?name=${esc(encodeURIComponent(productName))}" style="font-size:.78rem;color:#22D3A5;text-decoration:none">Mer info &amp; historik →</a>
         </div>`).join('');
 
       resultArea.innerHTML = `<div class="search-result-card">

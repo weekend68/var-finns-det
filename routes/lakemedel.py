@@ -110,8 +110,17 @@ def lakemedel(id_slug):
             # Row missing or still a placeholder -- this route must work from
             # any entry point (a race with /api/stock's own backfill, a fresh
             # deploy with no poll cycle yet, a notification email, a pasted
-            # URL), so try a live Fass lookup instead of giving up immediately.
+            # URL). Try a live Fass lookup first; it reliably fails here
+            # though, since Fass's package/{id} endpoint only accepts
+            # product-level npl_ids, not package-level npl_pack_ids like
+            # this one -- so fall back to ?name=, which the search UI
+            # already knows at click time and passes along (same trust
+            # level as /api/stock's own ?name= backfill).
             real_name = fass.lookup_name(npl_pack_id)
+            if not real_name:
+                given_name = request.args.get("name", "").strip()
+                if given_name and given_name != npl_pack_id:
+                    real_name = given_name
             if not real_name:
                 return not_found
             db.execute(
