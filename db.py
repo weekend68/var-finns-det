@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     UNIQUE(subscriber_id, npl_pack_id)
 );
 
+CREATE INDEX IF NOT EXISTS subscriptions_npl_pack_id ON subscriptions (npl_pack_id);
+
 CREATE TABLE IF NOT EXISTS tokens (
     token           TEXT PRIMARY KEY,
     type            TEXT NOT NULL CHECK(type IN ('confirm', 'unsubscribe', 'manage', 'extend')),
@@ -43,6 +45,9 @@ CREATE TABLE IF NOT EXISTS tokens (
     expires_at      TEXT NOT NULL,
     used_at         TEXT
 );
+
+CREATE INDEX IF NOT EXISTS tokens_subscriber_type ON tokens (subscriber_id, type);
+CREATE INDEX IF NOT EXISTS tokens_subscription_type ON tokens (subscription_id, type);
 
 CREATE TABLE IF NOT EXISTS daily_mail_count (
     date  TEXT PRIMARY KEY,
@@ -86,6 +91,17 @@ def get_db():
         yield con
     finally:
         con.close()
+
+
+def cleanup_old_tokens(db):
+    """Tokens are never deleted otherwise -- the table just grows forever.
+    Safe to remove: already-used tokens (used_at IS NOT NULL means it can
+    never be used again) and tokens expired long enough ago that no
+    legitimate use is possible."""
+    db.execute(
+        "DELETE FROM tokens WHERE used_at IS NOT NULL "
+        "OR expires_at < datetime('now', '-7 days')"
+    )
 
 
 def utcnow_str(delta=None):
