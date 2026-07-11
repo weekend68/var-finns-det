@@ -241,8 +241,14 @@ def fetch_all_pharmacies():
 
 def _get_subscription_products():
     """
-    Return extra products from active subscriptions not already in PRODUCTS.
-    Safe to call even if DB is not initialised yet.
+    Return extra products from active subscriptions not already in PRODUCTS,
+    or None if the lookup itself failed (e.g. a transient DB error) --
+    callers must NOT treat None the same as "no active subscriptions right
+    now", since polling_loop()'s pruning step keys off this list to decide
+    what's no longer actively watched. Silently returning [] on error used
+    to make every subscription-only medication look abandoned for that one
+    cycle, wrongly evicting their fresh all_stock/_consecutive_zeros state
+    even though the subscriptions are still fully active in the DB.
     """
     seed_ids = {p["npl_pack_id"] for p in PRODUCTS}
     try:
@@ -261,8 +267,9 @@ def _get_subscription_products():
             for r in rows
             if r["npl_pack_id"] not in seed_ids
         ]
-    except Exception:
-        return []
+    except Exception as e:
+        print(f"  _get_subscription_products fel: {e}")
+        return None
 
 
 def lock_for(npl_pack_id):
@@ -343,8 +350,13 @@ def polling_loop(prev_in_stock):
         pharmacy_map = _pharmacy_map
         gln_codes = list(pharmacy_map.keys())
 
-        # Merge hardcoded PRODUCTS with active subscription medications
+        # Merge hardcoded PRODUCTS with active subscription medications.
+        # None (lookup failed) must not be treated as "no subscriptions" --
+        # see _get_subscription_products' docstring. subscription_lookup_ok
+        # gates the active_ids-based pruning below.
         extra = _get_subscription_products()
+        subscription_lookup_ok = extra is not None
+        extra = extra or []
         all_products = PRODUCTS + extra
 
         print(f"\n[{now:%Y-%m-%d %H:%M:%S}] Kollar {len(gln_codes)} apotek, "
@@ -444,11 +456,13 @@ def polling_loop(prev_in_stock):
             state["polls_done"] += 1
             state["products"] = updated_products
             state["all_stock"].update(all_stock_updates)
-            for stale_id in set(state["all_stock"]) - active_ids:
-                del state["all_stock"][stale_id]
+            if subscription_lookup_ok:
+                for stale_id in set(state["all_stock"]) - active_ids:
+                    del state["all_stock"][stale_id]
 
-        for stale_id in set(_consecutive_zeros) - active_ids:
-            _consecutive_zeros.pop(stale_id, None)
+        if subscription_lookup_ok:
+            for stale_id in set(_consecutive_zeros) - active_ids:
+                _consecutive_zeros.pop(stale_id, None)
 
         # _live_stock_cache serves ad-hoc lookups for products that were
         # searched but never subscribed to (not in active_ids at all) -- age
@@ -521,9 +535,14 @@ def _notify_subscribers(npl_pack_id, medication_name, pharmacies, checked_at):
             # Build the deep link via the same shared helper routes/lakemedel.py
             # uses for its canonical slug, so the emailed URL matches the
             # canonical one and never needs a redirect.
+            # Skip the link entirely if the row is still a name==npl_pack_id
+            # placeholder -- fass.lookup_name() can't resolve a package-level
+            # id (confirmed live: Fass's package/{id} endpoint only accepts
+            # product-level ids), so a link built from a placeholder name
+            # would just 404 for the recipient instead of not being there.
             medication_url = None
             med = get_medication(db, npl_pack_id)
-            if SITE_URL and med:
+            if SITE_URL and med and med["name"] != npl_pack_id:
                 medication_url = build_medication_url(SITE_URL, npl_pack_id, med["name"], med["strength"], med["form"])
 
             subs = db.execute("""
