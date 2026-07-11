@@ -437,6 +437,7 @@ def polling_loop(prev_in_stock):
 
         _send_renewal_reminders()
         _cleanup_old_tokens()
+        _cleanup_expired_subscriptions()
 
         elapsed = time.time() - t0
         sleep_time = max(0, POLL_INTERVAL - elapsed)
@@ -645,6 +646,16 @@ def _cleanup_old_tokens():
             db.commit()
     except Exception as e:
         print(f"  _cleanup_old_tokens fel: {e}")
+
+
+def _cleanup_expired_subscriptions():
+    try:
+        from db import cleanup_expired_subscriptions, get_db
+        with get_db() as db:
+            cleanup_expired_subscriptions(db)
+            db.commit()
+    except Exception as e:
+        print(f"  _cleanup_expired_subscriptions fel: {e}")
 
 
 def _log_poll(polled_at, all_products, result_map, notified_ids, total_glns):

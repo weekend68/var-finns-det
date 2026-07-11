@@ -108,6 +108,31 @@ def cleanup_old_tokens(db):
     )
 
 
+def cleanup_expired_subscriptions(db):
+    """Delete subscriptions more than 7 days past their expiry, per the
+    privacy policy's retention promise ("inaktiva prenumerationer raderas
+    automatiskt 7 dagar efter utgångsdatum") -- expiry (not the active flag)
+    is the trigger, since nothing else ever flips active=0 on a subscription
+    that simply lapses without an explicit unsubscribe/renewal. Deletes any
+    tokens still referencing the subscription first (foreign_keys=ON would
+    otherwise reject the delete), then soft-deletes any subscriber left with
+    zero remaining subscriptions."""
+    rows = db.execute(
+        "SELECT id, subscriber_id FROM subscriptions WHERE expires_at < datetime('now', '-7 days')"
+    ).fetchall()
+    for row in rows:
+        db.execute("DELETE FROM tokens WHERE subscription_id=?", [row["id"]])
+        db.execute("DELETE FROM subscriptions WHERE id=?", [row["id"]])
+        remaining = db.execute(
+            "SELECT 1 FROM subscriptions WHERE subscriber_id=? LIMIT 1", [row["subscriber_id"]]
+        ).fetchone()
+        if not remaining:
+            db.execute(
+                "UPDATE subscribers SET deleted_at=datetime('now') WHERE id=? AND deleted_at IS NULL",
+                [row["subscriber_id"]],
+            )
+
+
 def utcnow_str(delta=None):
     """UTC 'now' (optionally offset by a timedelta) as TEXT in the same
     space-separated, second-precision format SQLite's own datetime('now')
