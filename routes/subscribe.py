@@ -1,7 +1,8 @@
 import os
 from datetime import datetime, timedelta
 
-from flask import Blueprint, redirect, render_template, request, url_for
+from flask import Blueprint, render_template, request
+from markupsafe import escape
 
 import checker
 import mail
@@ -116,7 +117,7 @@ def subscribe():
 
     return render_template("message.html",
         title="Kontrollera din e-post",
-        message=f"Vi har skickat en bekräftelse via e-post till <strong>{email}</strong>. "
+        message=f"Vi har skickat en bekräftelse via e-post till <strong>{escape(email)}</strong>. "
                 "Klicka på länken i e-postmeddelandet för att aktivera bevakningen. "
                 "<strong>Länken är giltig i 48 timmar</strong> — kolla skräpposten om du inte hittar det.",
         icon="✉️",
