@@ -139,13 +139,8 @@ def _fass_search(q):
 def _db_search(q):
     """Search seeded medications in local DB (case-insensitive LIKE)."""
     try:
-        from db import get_db
-        # Escape LIKE wildcards in the user-supplied query -- a literal % or
-        # _ would otherwise be interpreted as "any characters"/"any one
-        # character" instead of a literal, matching far more than an actual
-        # substring search should (e.g. "__" matching any two-character
-        # medication name anywhere).
-        escaped_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        from db import escape_like, get_db
+        escaped_q = escape_like(q)
         with get_db() as db:
             rows = db.execute(
                 "SELECT npl_pack_id, name, strength, form FROM medications "

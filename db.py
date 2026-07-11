@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS poll_log (
 );
 
 CREATE INDEX IF NOT EXISTS poll_log_at ON poll_log (polled_at DESC);
+CREATE INDEX IF NOT EXISTS poll_log_npl_pack_id_at ON poll_log (npl_pack_id, polled_at DESC);
 
 CREATE TABLE IF NOT EXISTS pharmacy_cache (
     id       INTEGER PRIMARY KEY CHECK(id = 1),
@@ -129,6 +130,14 @@ def create_token(db, token_type, subscriber_id, subscription_id=None, ttl_hours=
         [token, token_type, subscriber_id, subscription_id, expires],
     )
     return token
+
+
+def escape_like(s):
+    """Escape LIKE wildcards in user-supplied text -- a literal % or _ would
+    otherwise be interpreted as "any characters"/"any one character" instead
+    of a literal, matching far more than an actual substring search should.
+    Pair with "... LIKE ? ESCAPE '\\'" in the query."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def get_medication(db, npl_pack_id):

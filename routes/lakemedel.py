@@ -6,7 +6,7 @@ from flask import Blueprint, redirect, render_template, request
 import checker
 import fass
 from config import SITE_URL, SUBSCRIPTION_TTL_DAYS
-from db import get_db, get_medication, is_medication_indexable
+from db import escape_like, get_db, get_medication, is_medication_indexable
 from pharmacy_grouping import group_pharmacies_by_omrade, normalize_omrade
 from slugs import medication_url, slugify_medication
 
@@ -73,10 +73,7 @@ def _sibling_packages(db, med):
     base = (med["name"] or "").strip().split(" ")[0]
     if len(base) < 3:
         return []
-    # Escape LIKE wildcards in case a trade name ever contains a literal % or
-    # _ -- unlikely for Swedish pharmaceutical names, but otherwise those
-    # characters would match arbitrarily more than an exact prefix.
-    escaped_base = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    escaped_base = escape_like(base)
     rows = db.execute(
         "SELECT npl_pack_id, name, strength, form FROM medications "
         "WHERE name LIKE ? ESCAPE '\\' AND npl_pack_id != ? AND name != npl_pack_id "
