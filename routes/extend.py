@@ -39,8 +39,8 @@ def extend(token):
         db.execute("UPDATE tokens SET used_at=datetime('now') WHERE token=?", [token])
         if row["subscription_id"]:
             db.execute(
-                "UPDATE subscriptions SET active=1, expires_at=? WHERE id=?",
-                [new_expires, row["subscription_id"]],
+                "UPDATE subscriptions SET active=1, expires_at=? WHERE id=? AND subscriber_id=?",
+                [new_expires, row["subscription_id"], row["subscriber_id"]],
             )
 
         manage_token = get_or_create_token(db, "manage", row["subscriber_id"], None)
