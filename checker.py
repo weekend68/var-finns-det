@@ -409,10 +409,18 @@ def polling_loop(prev_in_stock):
                 _notify_subscribers(npl_pack_id, name, pharmacies)
 
         _send_renewal_reminders()
+        _cleanup_old_tokens()
 
         elapsed = time.time() - t0
         sleep_time = max(0, POLL_INTERVAL - elapsed)
         next_check = datetime.fromtimestamp(time.time() + sleep_time, tz=TZ)
+
+        # Prune per-product state for anything no longer actively polled.
+        # _consecutive_zeros, state["all_stock"] and _live_stock_cache are
+        # all keyed by npl_pack_id and otherwise grow for the entire process
+        # lifetime -- every medication ever searched or subscribed to, never
+        # trimmed back down once it drops out of PRODUCTS/subscriptions.
+        active_ids = {p["npl_pack_id"] for p in all_products}
 
         with state_lock:
             state["status"] = "ok"
@@ -421,6 +429,19 @@ def polling_loop(prev_in_stock):
             state["polls_done"] += 1
             state["products"] = updated_products
             state["all_stock"].update(all_stock_updates)
+            for stale_id in set(state["all_stock"]) - active_ids:
+                del state["all_stock"][stale_id]
+
+        for stale_id in set(_consecutive_zeros) - active_ids:
+            _consecutive_zeros.pop(stale_id, None)
+
+        # _live_stock_cache serves ad-hoc lookups for products that were
+        # searched but never subscribed to (not in active_ids at all) -- age
+        # out anything old enough that its own TTL logic would refetch it
+        # anyway, so an abandoned one-off search doesn't linger forever.
+        now_ts = time.time()
+        for stale_id in [k for k, (ts, _) in list(_live_stock_cache.items()) if now_ts - ts > STALE_AFTER]:
+            _live_stock_cache.pop(stale_id, None)
 
         save_cache(prev_in_stock)
         print(f"  Koll tog {elapsed:.0f}s, sover {sleep_time:.0f}s till nästa")
@@ -542,6 +563,16 @@ def _send_renewal_reminders():
                     print(f"  Förlängningsmejl till {sub['email']} inte skickat -- försöker igen nästa pollning")
     except Exception as e:
         print(f"  _send_renewal_reminders fel: {e}")
+
+
+def _cleanup_old_tokens():
+    try:
+        from db import get_db, cleanup_old_tokens
+        with get_db() as db:
+            cleanup_old_tokens(db)
+            db.commit()
+    except Exception as e:
+        print(f"  _cleanup_old_tokens fel: {e}")
 
 
 def _log_poll(polled_at, all_products, result_map, notified_ids, total_glns):
