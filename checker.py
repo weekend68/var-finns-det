@@ -23,6 +23,11 @@ from fass import check_stock
 TZ = ZoneInfo("Europe/Stockholm")
 CACHE_FILE = os.getenv("CACHE_FILE", "/data/medicinstatus_cache.json")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "2")) * 60
+# A "polled" state["all_stock"] entry is only trustworthy if it was actually
+# refreshed recently -- a product that starts erroring every cycle (e.g. a
+# retired/renamed npl_pack_id) otherwise keeps serving its last successful
+# result forever, with nothing but a growing "checked_at" to betray it.
+STALE_AFTER = POLL_INTERVAL * 3
 IN_STOCK_STATUSES = {"IN_STOCK", "FEW_IN_STOCK"}
 SHOW_LIMIT = 10
 
@@ -259,7 +264,12 @@ def _get_subscription_products():
         return []
 
 
-def _lock_for(npl_pack_id):
+def lock_for(npl_pack_id):
+    """Per-ID lock guarding any Fass fetch keyed by npl_pack_id -- both
+    get_stock_info()'s live check and routes/lakemedel.py's self-healing
+    name lookup share this, so a burst of concurrent requests for the same
+    never-before-seen medication serializes into one Fass call instead of
+    a thundering herd."""
     with _stock_fetch_locks_lock:
         lock = _stock_fetch_locks.get(npl_pack_id)
         if lock is None:
@@ -282,6 +292,8 @@ def get_stock_info(npl_pack_id, sample_size=300):
     """
     with state_lock:
         hit = state["all_stock"].get(npl_pack_id)
+    if hit is not None and (time.time() - hit.get("checked_ts", 0)) >= STALE_AFTER:
+        hit = None
     if hit is not None:
         return {"pharmacies": hit["pharmacies"], "checked_at": hit["checked_at"], "source": "polled"}
 
@@ -291,7 +303,7 @@ def get_stock_info(npl_pack_id, sample_size=300):
         checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
         return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache"}
 
-    with _lock_for(npl_pack_id):
+    with lock_for(npl_pack_id):
         # Re-check inside the lock — another thread may have just populated it
         # while we were waiting, in which case skip the redundant Fass call.
         cached = _live_stock_cache.get(npl_pack_id)
@@ -364,7 +376,9 @@ def polling_loop(prev_in_stock):
                 # hardcoded PRODUCTS), so get_stock_info()'s fast path also
                 # covers subscription-only medications — exactly the ones
                 # that qualify as SEO-indexable, per db.is_medication_indexable.
-                all_stock_updates[npl_pack_id] = {"pharmacies": pharmacies, "checked_at": checked_at_str}
+                all_stock_updates[npl_pack_id] = {
+                    "pharmacies": pharmacies, "checked_at": checked_at_str, "checked_ts": time.time(),
+                }
                 current_glns = {ph["name"] for ph in pharmacies}
                 prev_glns = prev_in_stock.get(npl_pack_id)  # None = aldrig sedd, set() = känt restnoterad
 
@@ -453,18 +467,28 @@ def _notify_subscribers(npl_pack_id, medication_name, pharmacies):
                 db.commit()
 
                 try:
-                    mail.send_notification(
+                    sent = mail.send_notification(
                         sub["email"], medication_name, pharmacies,
                         unsub_token, manage_token, sub["expires_at"], site_url,
                         medication_url=medication_url,
                     )
+                except Exception as e:
+                    sent = False
+                    print(f"  Notismejl till {sub['email']} misslyckades: {e}")
+
+                if sent:
                     db.execute(
                         "UPDATE subscriptions SET last_notified_at=datetime('now') WHERE id=?",
                         [sub["id"]],
                     )
                     db.commit()
-                except Exception as e:
-                    print(f"  Notismejl till {sub['email']} misslyckades: {e}")
+                else:
+                    # send_notification returns False (daily mail cap reached,
+                    # no exception) as well as raising on a hard failure --
+                    # leave last_notified_at untouched either way so the next
+                    # poll cycle retries instead of silently losing this
+                    # subscriber's one-time restock notification for good.
+                    print(f"  Notismejl till {sub['email']} inte skickat -- försöker igen nästa pollning")
     except Exception as e:
         print(f"  _notify_subscribers fel: {e}")
 
@@ -495,14 +519,27 @@ def _send_renewal_reminders():
             for sub in subs:
                 extend_token = create_token(db, "extend", sub["sub_id"], sub["id"], ttl_hours=7 * 24)
                 manage_token = get_or_create_token(db, "manage", sub["sub_id"], None, ttl_hours=30 * 24)
-                db.commit()
 
                 try:
-                    mail.send_renewal_reminder(
+                    sent = mail.send_renewal_reminder(
                         sub["email"], sub["expires_at"], extend_token, manage_token, site_url,
                     )
                 except Exception as e:
+                    sent = False
                     print(f"  Förlängningsmejl till {sub['email']} misslyckades: {e}")
+
+                if sent:
+                    # Only now persist the extend token -- its created_at is
+                    # what the NOT EXISTS guard above uses to skip this
+                    # subscription for the next 24h. Since the reminder
+                    # window is only a day wide, committing it before a
+                    # confirmed send would burn this subscriber's one chance
+                    # to ever get reminded before expiry if the send failed
+                    # (e.g. daily mail cap reached).
+                    db.commit()
+                else:
+                    db.rollback()
+                    print(f"  Förlängningsmejl till {sub['email']} inte skickat -- försöker igen nästa pollning")
     except Exception as e:
         print(f"  _send_renewal_reminders fel: {e}")
 
