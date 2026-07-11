@@ -133,7 +133,7 @@ def subscribe():
         return render_template("message.html",
             title="Något gick fel",
             message="Vi kunde inte skicka bekräftelsen just nu. "
-                    "Försök igen om en stund — din adress är inte sparad.",
+                    "Försök igen om en stund — bevakningen har inte aktiverats än.",
             icon="❌",
             cta_url="/",
             cta_text="Tillbaka till startsidan",
