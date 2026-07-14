@@ -9,6 +9,13 @@ SITE_URL = os.getenv("SITE_URL", "").rstrip("/")
 # same "30 * 24" / "days=30" literal repeated independently across files.
 SUBSCRIPTION_TTL_DAYS = 30
 
+# Minimum time between two notification emails for the same subscription --
+# a pharmacy's live stock status can flicker in/out several times within a
+# single day (per Fass's own docs), so a plain "notify once per restock"
+# rule sends far too many emails. Replaces the old approach of clearing
+# last_notified_at as soon as a product was confirmed out of stock again.
+NOTIFY_COOLDOWN_HOURS = 24
+
 
 def token_url(site_url, kind, token):
     """Build a token-bearing URL (manage/confirm/unsubscribe/extend) --

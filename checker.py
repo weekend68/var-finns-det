@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import fass
-from config import SITE_URL
+from config import NOTIFY_COOLDOWN_HOURS, SITE_URL
 from fass import check_stock
 
 TZ = ZoneInfo("Europe/Stockholm")
@@ -39,6 +39,13 @@ _pharmacy_map: dict = {}
 # Requires 2 in a row before clearing prev_in_stock, to avoid false triggers
 # caused by transient API failures.
 _consecutive_zeros: dict = {}
+
+# Tracks consecutive polls with >0 pharmacies per product, but ONLY while
+# transitioning from confirmed-out back to in-stock. Requires 2 in a row
+# before flipping prev_in_stock/newly_available, symmetric with
+# _consecutive_zeros above -- avoids a one-off single-poll blip (a pharmacy's
+# live stock status flickering for a moment) counting as a genuine restock.
+_consecutive_positives: dict = {}
 
 # Single source of truth for the hardcoded "always polled, always on the
 # homepage" medications. seed_products() (called once at startup) writes
@@ -405,21 +412,30 @@ def polling_loop(prev_in_stock):
                     _consecutive_zeros.pop(npl_pack_id, None)
                     # prev_glns is None means first poll for this product — establish baseline silently
                     if prev_glns is not None and not prev_glns:
-                        newly_available.append((name, pharmacies, npl_pack_id))
-                    currently_in_stock.append((name, pharmacies, npl_pack_id))
-                    prev_in_stock[npl_pack_id] = current_glns
+                        # Confirmed-out -> now seeing stock. Require 2
+                        # consecutive positive polls before treating this as
+                        # a genuine restock, symmetric with the "2 consecutive
+                        # zeros" rule below -- a single-poll blip otherwise
+                        # triggers a notification for a restock that doesn't
+                        # actually last.
+                        positives = _consecutive_positives.get(npl_pack_id, 0) + 1
+                        if positives >= 2:
+                            _consecutive_positives.pop(npl_pack_id, None)
+                            newly_available.append((name, pharmacies, npl_pack_id))
+                            currently_in_stock.append((name, pharmacies, npl_pack_id))
+                            prev_in_stock[npl_pack_id] = current_glns
+                        else:
+                            _consecutive_positives[npl_pack_id] = positives
+                    else:
+                        currently_in_stock.append((name, pharmacies, npl_pack_id))
+                        prev_in_stock[npl_pack_id] = current_glns
                 else:
                     # Require 2 consecutive zeros before clearing prev_in_stock.
                     # A single failed/empty poll won't reset the "seen in stock" state.
                     zeros = _consecutive_zeros.get(npl_pack_id, 0) + 1
                     _consecutive_zeros[npl_pack_id] = zeros
+                    _consecutive_positives.pop(npl_pack_id, None)
                     if zeros >= 2:
-                        if prev_glns:
-                            # Was in stock, now confirmed out -- clear so a
-                            # FUTURE restock notifies subscribers again,
-                            # instead of last_notified_at from this restock
-                            # permanently blocking it.
-                            _reset_notified(npl_pack_id)
                         prev_in_stock[npl_pack_id] = set()
 
                 print(f"  {name}: {len(pharmacies)} i lager")
@@ -464,6 +480,8 @@ def polling_loop(prev_in_stock):
         if subscription_lookup_ok:
             for stale_id in set(_consecutive_zeros) - active_ids:
                 _consecutive_zeros.pop(stale_id, None)
+            for stale_id in set(_consecutive_positives) - active_ids:
+                _consecutive_positives.pop(stale_id, None)
 
         # _live_stock_cache serves ad-hoc lookups for products that were
         # searched but never subscribed to (not in active_ids at all) -- age
@@ -496,23 +514,6 @@ def polling_loop(prev_in_stock):
         time.sleep(sleep_time)
 
 
-def _reset_notified(npl_pack_id):
-    """Clear last_notified_at for a product's active subscriptions once it's
-    confirmed out of stock again, so the NEXT restock notifies them anew --
-    otherwise last_notified_at from a past restock would permanently block
-    all future ones for that subscription."""
-    try:
-        from db import get_db
-        with get_db() as db:
-            db.execute(
-                "UPDATE subscriptions SET last_notified_at=NULL WHERE npl_pack_id=? AND active=1",
-                [npl_pack_id],
-            )
-            db.commit()
-    except Exception as e:
-        print(f"  _reset_notified fel: {e}")
-
-
 def _notify_subscribers(npl_pack_id, medication_name, pharmacies, checked_at):
     """Called every poll cycle a product is in stock (not just the cycle a
     restock transition is first detected) -- the SQL below only ever selects
@@ -526,12 +527,13 @@ def _notify_subscribers(npl_pack_id, medication_name, pharmacies, checked_at):
     fires again until the product goes out of stock and back in."""
     try:
         import mail
-        from db import get_db, get_medication, get_or_create_token
+        from db import get_db, get_medication, get_or_create_token, utcnow_str
         from slugs import medication_url as build_medication_url
     except ImportError:
         return
 
     try:
+        cooldown_cutoff = utcnow_str(timedelta(hours=-NOTIFY_COOLDOWN_HOURS))
         with get_db() as db:
             # Build the deep link via the same shared helper routes/lakemedel.py
             # uses for its canonical slug, so the emailed URL matches the
@@ -553,8 +555,8 @@ def _notify_subscribers(npl_pack_id, medication_name, pharmacies, checked_at):
                 WHERE s.npl_pack_id = ? AND s.active = 1
                   AND sub.confirmed_at IS NOT NULL AND sub.deleted_at IS NULL
                   AND s.expires_at > datetime('now')
-                  AND s.last_notified_at IS NULL
-            """, [npl_pack_id]).fetchall()
+                  AND (s.last_notified_at IS NULL OR s.last_notified_at < ?)
+            """, [npl_pack_id, cooldown_cutoff]).fetchall()
 
             for sub in subs:
                 unsub_token = get_or_create_token(db, "unsubscribe", sub["sub_id"], sub["id"])
