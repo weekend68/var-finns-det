@@ -75,6 +75,35 @@ CREATE TABLE IF NOT EXISTS pharmacy_cache (
     data     TEXT NOT NULL,
     saved_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Fas 3: broad national shortage catalogue (all current Läkemedelsverket
+-- shortage reports, not just the 10 hardcoded checker.PRODUCTS -- see
+-- national_shortages.py). One row per PACKAGE (npl_pack_id), matching the
+-- rest of the app's granularity -- a single product (npl_id) can have
+-- several rows here, one per pack size.
+CREATE TABLE IF NOT EXISTS national_shortages (
+    npl_pack_id      TEXT PRIMARY KEY REFERENCES medications(npl_pack_id),
+    npl_id           TEXT,
+    product_name     TEXT,
+    atc_code         TEXT,
+    atc_term         TEXT,
+    type_of_shortage TEXT,
+    forecasted_start TEXT,
+    forecasted_end   TEXT,
+    actual_end       TEXT,
+    last_updated     TEXT,
+    is_active        INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS national_shortages_atc_active ON national_shortages (atc_code, is_active);
+
+-- Single-row "last successful catalogue refresh" marker, same idea as
+-- pharmacy_cache above -- lets checker.py's polling_loop() gate the ~19MB
+-- daily feed fetch to once per day instead of every POLL_INTERVAL cycle.
+CREATE TABLE IF NOT EXISTS national_shortages_meta (
+    id                INTEGER PRIMARY KEY CHECK(id = 1),
+    last_refreshed_at TEXT
+);
 """
 
 def init_db():

@@ -454,6 +454,7 @@ def polling_loop(prev_in_stock):
         _send_renewal_reminders()
         _cleanup_old_tokens()
         _cleanup_expired_subscriptions()
+        _refresh_national_shortage_catalog()
 
         elapsed = time.time() - t0
         sleep_time = max(0, POLL_INTERVAL - elapsed)
@@ -658,6 +659,22 @@ def _cleanup_expired_subscriptions():
             db.commit()
     except Exception as e:
         print(f"  _cleanup_expired_subscriptions fel: {e}")
+
+
+def _refresh_national_shortage_catalog():
+    """Daily (not per-cycle) refresh of the Fas 3 national shortage
+    catalogue -- broad restsituation data covering the whole Läkemedelsverket
+    feed, not just the polled PRODUCTS above. Gated to at most once per day
+    inside national_shortages.refresh_national_shortages_if_due() itself,
+    since the underlying feed is a ~19MB daily snapshot and must not be
+    re-fetched every POLL_INTERVAL cycle. Deliberately separate from (and
+    never feeds into) all_products/_get_subscription_products() -- this only
+    surfaces national forecast data, never live pharmacy stock."""
+    try:
+        import national_shortages
+        national_shortages.refresh_national_shortages_if_due()
+    except Exception as e:
+        print(f"  _refresh_national_shortage_catalog fel: {e}")
 
 
 def _log_poll(polled_at, all_products, result_map, notified_ids, total_glns):
