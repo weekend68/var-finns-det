@@ -76,6 +76,9 @@
     .siblings a { font-size: 0.85rem; color: #0D1B2A; background: #f0faf7; border: 1px solid #cdeee3;
                   border-radius: 5px; padding: 0.3rem 0.6rem; text-decoration: none; }
     .siblings a:hover { border-color: #22D3A5; }
+    .category-link { display: inline-block; font-size: 0.8rem; color: #3D6480;
+                      text-decoration: none; margin-bottom: 0.6rem; }
+    .category-link:hover { color: #1bb890; text-decoration: underline; }
     .faq dt { font-weight: 600; font-size: 0.9rem; color: #0D1B2A; margin-top: 0.75rem; }
     .faq dd { font-size: 0.85rem; color: #555; margin-top: 0.2rem; line-height: 1.5; }
     .partner-guide { display: block; color: inherit; text-decoration: none;
@@ -136,6 +139,9 @@
 
   <main>
     <div class="card">
+      {% if category %}
+      <a class="category-link" href="/kategori/{{ category.atc_code }}">← Alla {{ category.atc_term or category.atc_code }}-preparat</a>
+      {% endif %}
       <h1>{{ med.name }}</h1>
       {% if med.strength or med.form %}
       <p class="subtitle">{{ [med.strength, med.form] | select | join(' · ') }}</p>

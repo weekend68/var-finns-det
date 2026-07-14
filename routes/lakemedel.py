@@ -8,6 +8,7 @@ import fass
 import shortage
 from config import HISTORY_RELIABLE_SINCE, MIN_CONSECUTIVE_POLLS, SITE_URL, SUBSCRIPTION_TTL_DAYS
 from db import escape_like, get_db, get_medication, is_medication_indexable
+from national_shortages import get_shortage_category
 from pharmacy_grouping import group_pharmacies_by_omrade, normalize_omrade
 from slugs import medication_url, slugify_medication
 
@@ -152,6 +153,24 @@ def _sibling_packages(db, med):
     ]
 
 
+def _category_breadcrumb(db, npl_pack_id):
+    """If this package is part of a national-shortage category that reaches
+    get_shortage_category()'s min_products threshold (see national_shortages.py),
+    return {"atc_code", "atc_term"} for a discreet breadcrumb link back to that
+    category's page (routes/kategori.py). None for the common case -- most
+    products either aren't in national_shortages at all, or their category is
+    too small to have its own page -- and the template must render nothing
+    in that case, not an empty link."""
+    row = db.execute(
+        "SELECT atc_code FROM national_shortages WHERE npl_pack_id=? "
+        "AND atc_code IS NOT NULL AND atc_code != ''",
+        [npl_pack_id],
+    ).fetchone()
+    if not row:
+        return None
+    return get_shortage_category(db, row["atc_code"])
+
+
 @bp.route("/lakemedel/<path:id_slug>")
 def lakemedel(id_slug):
     m = _ID_SLUG_RE.match(id_slug)
@@ -209,6 +228,7 @@ def lakemedel(id_slug):
         indexable = is_medication_indexable(db, npl_pack_id)
         history = _stock_history(db, npl_pack_id)
         siblings = _sibling_packages(db, med)
+        category = _category_breadcrumb(db, npl_pack_id)
 
     shortage_info = shortage.get_shortage_info(npl_pack_id)
 
@@ -267,6 +287,7 @@ def lakemedel(id_slug):
         history=history,
         shortage_info=shortage_info,
         siblings=siblings,
+        category=category,
         indexable=indexable,
         show_partner_guide=npl_pack_id in checker.MENOPAUSE_RELATED_IDS,
         canonical_url=canonical_url,

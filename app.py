@@ -7,6 +7,7 @@ from flask import Flask, render_template, Response
 import checker
 from config import SITE_URL, SUBSCRIPTION_TTL_DAYS
 from db import get_db, init_db, list_medications_for_sitemap
+from national_shortages import get_shortage_categories
 from slugs import medication_url
 
 SITE_NAME = os.getenv("SITE_NAME", "varfinnsdet.se")
@@ -121,9 +122,13 @@ def create_app():
     def sitemap_xml():
         with get_db() as db:
             meds = list_medications_for_sitemap(db)
+            categories = get_shortage_categories(db)
         urls = [SITE_URL + "/"] if SITE_URL else ["/"]
         for m in meds:
             urls.append(medication_url(SITE_URL, m["npl_pack_id"], m["name"], m["strength"], m["form"]))
+        urls.append(f"{SITE_URL}/kategorier")
+        for c in categories:
+            urls.append(f"{SITE_URL}/kategori/{c['atc_code']}")
         xml = render_template("sitemap.xml", urls=urls)
         return Response(xml, mimetype="application/xml")
 
@@ -135,6 +140,7 @@ def create_app():
     from routes.search import bp as search_bp
     from routes.log import bp as log_bp
     from routes.lakemedel import bp as lakemedel_bp
+    from routes.kategori import bp as kategori_bp
     app.register_blueprint(subscribe_bp)
     app.register_blueprint(manage_bp)
     app.register_blueprint(unsubscribe_bp)
@@ -142,6 +148,7 @@ def create_app():
     app.register_blueprint(search_bp)
     app.register_blueprint(log_bp)
     app.register_blueprint(lakemedel_bp)
+    app.register_blueprint(kategori_bp)
 
     if not _polling_started.is_set():
         _polling_started.set()
