@@ -6,7 +6,7 @@ from flask import Blueprint, redirect, render_template, request
 import checker
 import fass
 import shortage
-from config import MIN_CONSECUTIVE_POLLS, SITE_URL, SUBSCRIPTION_TTL_DAYS
+from config import HISTORY_RELIABLE_SINCE, MIN_CONSECUTIVE_POLLS, SITE_URL, SUBSCRIPTION_TTL_DAYS
 from db import escape_like, get_db, get_medication, is_medication_indexable
 from pharmacy_grouping import group_pharmacies_by_omrade, normalize_omrade
 from slugs import medication_url, slugify_medication
@@ -39,11 +39,20 @@ def _stock_history(db, npl_pack_id, limit=200):
     A flip is only trusted once MIN_CONSECUTIVE_POLLS consecutive rows in a
     row show the new status; a shorter run is skipped over as a blip and the
     scan continues past it as if those rows had matched the surrounding
-    status."""
+    status.
+
+    Only ever looks at rows at/after HISTORY_RELIABLE_SINCE -- older rows were
+    recorded before this run-length filtering existed, so we don't actually
+    know whether an old "boundary" in that data was a real change or just
+    two-plus consecutive noisy polls the current threshold would have let
+    through too. Rather than retroactively trust pre-fix data, a missing
+    confirmed boundary within the reliable window is reported as "monitored
+    since HISTORY_RELIABLE_SINCE, no change seen" (see at_least below) instead
+    of guessing a specific day count from data we can't vouch for."""
     rows = db.execute(
-        "SELECT polled_at, pharmacy_count FROM poll_log WHERE npl_pack_id=? "
+        "SELECT polled_at, pharmacy_count FROM poll_log WHERE npl_pack_id=? AND polled_at >= ? "
         "ORDER BY polled_at DESC LIMIT ?",
-        [npl_pack_id, limit],
+        [npl_pack_id, HISTORY_RELIABLE_SINCE, limit],
     ).fetchall()
     if not rows:
         return None
@@ -92,13 +101,13 @@ def _stock_history(db, npl_pack_id, limit=200):
         # "since" or get reported as a false transition.
         i = j
 
-    # "at_least" only means something when we genuinely don't know the exact
-    # boundary: the loop ran through the whole fetched window without
-    # confirming a status change, AND that window was capped by `limit` (so
-    # there could be more history before it we didn't fetch). If the loop
-    # found a confirmed boundary, `since` is precise regardless of how many
-    # rows were fetched.
-    at_least = not found_boundary and n >= limit
+    # No confirmed boundary within the reliable window -- whether that's
+    # because we hit `limit` or simply ran out of rows at HISTORY_RELIABLE_SINCE,
+    # either way we can't vouch for a specific transition date. Report this
+    # as "monitored since HISTORY_RELIABLE_SINCE, no change seen" (the
+    # template uses reliable_since_date for that) rather than a specific,
+    # possibly-wrong day count.
+    at_least = not found_boundary
 
     days = None
     try:
@@ -115,6 +124,7 @@ def _stock_history(db, npl_pack_id, limit=200):
         "since_date": since[:10],
         "days": days,
         "at_least": at_least,
+        "reliable_since_date": HISTORY_RELIABLE_SINCE[:10],
     }
 
 

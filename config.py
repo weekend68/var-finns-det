@@ -28,6 +28,23 @@ NOTIFY_COOLDOWN_HOURS = 24
 #     already-stored poll_log rows to find the same kind of confirmed flip.
 MIN_CONSECUTIVE_POLLS = 2
 
+# poll_log rows recorded before this timestamp predate MIN_CONSECUTIVE_POLLS
+# existing at all -- routes/lakemedel.py's _stock_history() must not treat
+# them as trustworthy just because the new run-length scan is now applied to
+# them retroactively. We don't actually know whether an old boundary reflects
+# a real status change or two-plus consecutive noisy polls the new threshold
+# would still have let through. Rather than guess, history only ever looks at
+# rows at/after this cutoff -- if that means no confirmed transition is found
+# yet, _stock_history() says "monitored since this date, no change seen",
+# not a specific (possibly wrong) day count.
+#
+# Format matches poll_log.polled_at exactly (checker.py's _log_poll(), NOT
+# db.utcnow_str()'s space-separated convention) -- "%Y-%m-%dT%H:%M:%S".
+#
+# UPDATE THIS to the actual production deploy time when this change ships;
+# it's set to a self-explanatory placeholder here on the feature branch.
+HISTORY_RELIABLE_SINCE = "2026-07-15T00:00:00"
+
 
 def token_url(site_url, kind, token):
     """Build a token-bearing URL (manage/confirm/unsubscribe/extend) --

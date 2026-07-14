@@ -286,14 +286,24 @@
     {% if history %}
     <div class="card">
       <h2 class="section-heading">Historik</h2>
-      {% if history.in_stock %}
-        <p>{{ 'Har varit i lager i minst' if history.at_least else 'Kom tillbaka i lager för' }}
-           {% if history.days is not none %}{{ history.days }} dagar{% else %}en tid{% endif %}
-           (sedan {{ history.since_date }}).</p>
+      {% if history.at_least %}
+        {% if history.in_stock %}
+        <p>Vi har bevakat det här läkemedlet sedan {{ history.reliable_since_date }}
+           och inte sett det restnoterat under den tiden.</p>
+        {% else %}
+        <p>Vi har bevakat det här läkemedlet sedan {{ history.reliable_since_date }}
+           och det har varit restnoterat under hela den tiden.</p>
+        {% endif %}
       {% else %}
-        <p>Restnoterat {{ 'i minst' if history.at_least else 'sedan' }}
+        {% if history.in_stock %}
+        <p>Kom tillbaka i lager för
            {% if history.days is not none %}{{ history.days }} dagar{% else %}en tid{% endif %}
            (sedan {{ history.since_date }}).</p>
+        {% else %}
+        <p>Restnoterat sedan
+           {% if history.days is not none %}{{ history.days }} dagar{% else %}en tid{% endif %}
+           (sedan {{ history.since_date }}).</p>
+        {% endif %}
       {% endif %}
     </div>
     {% endif %}
