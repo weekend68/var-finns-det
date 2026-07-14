@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import fass
-from config import NOTIFY_COOLDOWN_HOURS, SITE_URL
+from config import MIN_CONSECUTIVE_POLLS, NOTIFY_COOLDOWN_HOURS, SITE_URL
 from fass import check_stock
 
 TZ = ZoneInfo("Europe/Stockholm")
@@ -419,7 +419,7 @@ def polling_loop(prev_in_stock):
                         # triggers a notification for a restock that doesn't
                         # actually last.
                         positives = _consecutive_positives.get(npl_pack_id, 0) + 1
-                        if positives >= 2:
+                        if positives >= MIN_CONSECUTIVE_POLLS:
                             _consecutive_positives.pop(npl_pack_id, None)
                             newly_available.append((name, pharmacies, npl_pack_id))
                             currently_in_stock.append((name, pharmacies, npl_pack_id))
@@ -435,7 +435,7 @@ def polling_loop(prev_in_stock):
                     zeros = _consecutive_zeros.get(npl_pack_id, 0) + 1
                     _consecutive_zeros[npl_pack_id] = zeros
                     _consecutive_positives.pop(npl_pack_id, None)
-                    if zeros >= 2:
+                    if zeros >= MIN_CONSECUTIVE_POLLS:
                         prev_in_stock[npl_pack_id] = set()
 
                 print(f"  {name}: {len(pharmacies)} i lager")

@@ -228,6 +228,33 @@
       {% endif %}
     </div>
 
+    {% if shortage_info %}
+    <div class="card">
+      <h2 class="section-heading">Nationell bristsituation (Läkemedelsverket)</h2>
+      <p>
+        Läkemedelsverket har registrerat en nationell bristsituation för {{ med.name }}, sedan {{ shortage_info.forecasted_start }}
+        {%- if shortage_info.actual_end %}
+        . Enligt Läkemedelsverket är den bristen nu avslutad, sedan {{ shortage_info.actual_end }}.
+        {%- elif shortage_info.forecasted_end %}
+        (prognos: tillbaka omkring {{ shortage_info.forecasted_end }}).
+        {%- else %}
+        .
+        {%- endif %}
+        {%- if in_stock_now %}
+        Men just nu finns det ändå hos {{ pharmacies | length }} apotek — se listan ovan.
+        {%- elif stock_unknown %}
+        Vi kunde inte kontrollera lagerstatus just nu.
+        {%- else %}
+        Just nu syns det inte hos något apotek vi bevakar, vilket stämmer med bristregistreringen.
+        {%- endif %}
+      </p>
+      <p class="checked-at" style="margin-top:0.5rem">
+        Det här är Läkemedelsverkets egen nationella registrering och prognos — inte samma sak som "Historik" nedan,
+        som visar vad vi faktiskt sett i lager hos apotek.
+      </p>
+    </div>
+    {% endif %}
+
     {% if history %}
     <div class="card">
       <h2 class="section-heading">Historik</h2>
@@ -240,24 +267,6 @@
            {% if history.days is not none %}{{ history.days }} dagar{% else %}en tid{% endif %}
            (sedan {{ history.since_date }}).</p>
       {% endif %}
-    </div>
-    {% endif %}
-
-    {% if shortage_info %}
-    <div class="card">
-      <h2 class="section-heading">Nationell bristsituation (Läkemedelsverket)</h2>
-      <p>
-        Läkemedelsverket har registrerat en bristsituation för {{ med.name }}, sedan {{ shortage_info.forecasted_start }}.
-        {%- if shortage_info.actual_end %}
-        Enligt Läkemedelsverket är bristen nu avslutad, sedan {{ shortage_info.actual_end }}.
-        {%- elif shortage_info.forecasted_end %}
-        Prognosen är att läkemedlet väntas tillbaka i lager omkring {{ shortage_info.forecasted_end }}.
-        {%- endif %}
-      </p>
-      <p class="checked-at" style="margin-top:0.5rem">
-        Det här är Läkemedelsverkets egen nationella registrering och prognos — inte samma sak som "Historik" ovan,
-        som visar vad vi faktiskt sett i lager hos apotek.
-      </p>
     </div>
     {% endif %}
 

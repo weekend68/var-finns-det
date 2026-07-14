@@ -6,7 +6,7 @@ from flask import Blueprint, redirect, render_template, request
 import checker
 import fass
 import shortage
-from config import SITE_URL, SUBSCRIPTION_TTL_DAYS
+from config import MIN_CONSECUTIVE_POLLS, SITE_URL, SUBSCRIPTION_TTL_DAYS
 from db import escape_like, get_db, get_medication, is_medication_indexable
 from pharmacy_grouping import group_pharmacies_by_omrade, normalize_omrade
 from slugs import medication_url, slugify_medication
@@ -25,7 +25,21 @@ _ID_SLUG_RE = re.compile(r"^(\d{14})(?:-(.*))?$")
 def _stock_history(db, npl_pack_id, limit=200):
     """National aggregate history from poll_log — how long a medication has
     been (out of) stock. Never per-pharmacy/per-postnummer (poll_log only
-    stores an aggregate pharmacy_count per poll, not per-pharmacy detail)."""
+    stores an aggregate pharmacy_count per poll, not per-pharmacy detail).
+
+    This replays already-stored poll_log rows looking for a status flip,
+    same as checker.py's polling_loop() does live, poll by poll -- and needs
+    the same noise filter for the same reason: fass.py's check_stock() itself
+    regularly logs incomplete per-poll coverage (e.g. "50/1453 apotek kunde
+    inte kollas"), so a single poll's pharmacy_count can swing to/from 0 even
+    though the medication's real stock status never changed. Without
+    filtering, one bad poll wedged in the middle of an otherwise-continuous
+    run would show up as a (false) "back in stock 0 days ago"/"restnoterat
+    sedan idag" -- see MIN_CONSECUTIVE_POLLS' docstring in config.py.
+    A flip is only trusted once MIN_CONSECUTIVE_POLLS consecutive rows in a
+    row show the new status; a shorter run is skipped over as a blip and the
+    scan continues past it as if those rows had matched the surrounding
+    status."""
     rows = db.execute(
         "SELECT polled_at, pharmacy_count FROM poll_log WHERE npl_pack_id=? "
         "ORDER BY polled_at DESC LIMIT ?",
@@ -37,17 +51,54 @@ def _stock_history(db, npl_pack_id, limit=200):
     in_stock = rows[0]["pharmacy_count"] > 0
     since = rows[0]["polled_at"]
     found_boundary = False
-    for r in rows:
-        if (r["pharmacy_count"] > 0) != in_stock:
+    n = len(rows)
+    i = 1
+    while i < n:
+        r_status = rows[i]["pharmacy_count"] > 0
+        if r_status == in_stock:
+            since = rows[i]["polled_at"]
+            i += 1
+            continue
+
+        # Status differs from the current run. Count how long this run of
+        # the opposite status actually is before deciding whether it's a
+        # genuine transition or just noise.
+        run_len = 1
+        j = i + 1
+        while j < n and (rows[j]["pharmacy_count"] > 0) == r_status:
+            run_len += 1
+            j += 1
+
+        if run_len >= MIN_CONSECUTIVE_POLLS:
+            # Confirmed transition -- `since` already holds polled_at of the
+            # last row that still matched the current status, right before
+            # this (now-confirmed) flip.
             found_boundary = True
             break
-        since = r["polled_at"]
+
+        if j >= n:
+            # This run of the opposite status reaches all the way to the
+            # edge of the fetched window without ever accumulating enough
+            # rows to confirm (or rule out) a real transition -- there could
+            # be more rows of the same status just past `limit` that would
+            # tip it over the threshold. Don't guess either way; stop here
+            # with an unresolved boundary (same as running out of rows).
+            break
+
+        # A short run of the opposite status, bracketed by rows of the
+        # current status further back in time -- a blip. Skip over it
+        # entirely (leaving `since` untouched) and keep scanning as if it
+        # had matched the current status, so one bad poll doesn't truncate
+        # "since" or get reported as a false transition.
+        i = j
+
     # "at_least" only means something when we genuinely don't know the exact
-    # boundary: the loop ran through the whole fetched window without finding
-    # a status change, AND that window was capped by `limit` (so there could
-    # be more history before it we didn't fetch). If the loop found the exact
-    # boundary, `since` is precise regardless of how many rows were fetched.
-    at_least = not found_boundary and len(rows) >= limit
+    # boundary: the loop ran through the whole fetched window without
+    # confirming a status change, AND that window was capped by `limit` (so
+    # there could be more history before it we didn't fetch). If the loop
+    # found a confirmed boundary, `since` is precise regardless of how many
+    # rows were fetched.
+    at_least = not found_boundary and n >= limit
 
     days = None
     try:

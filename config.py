@@ -16,6 +16,18 @@ SUBSCRIPTION_TTL_DAYS = 30
 # last_notified_at as soon as a product was confirmed out of stock again.
 NOTIFY_COOLDOWN_HOURS = 24
 
+# Minimum number of consecutive polls with a new status before a stock-status
+# flip is trusted as real, rather than a single noisy measurement -- fass.py's
+# own check_stock() regularly logs incomplete per-poll coverage (e.g. "50/1453
+# apotek kunde inte kollas"), so any one poll's pharmacy_count can swing to/
+# from 0 even though the medication's actual stock status hasn't changed.
+# Shared between two different mechanisms that both apply this same principle:
+#   - checker.py's polling_loop(): a streaming state machine filtering one
+#     live poll at a time (_consecutive_zeros/_consecutive_positives).
+#   - routes/lakemedel.py's _stock_history(): a batch analysis replaying
+#     already-stored poll_log rows to find the same kind of confirmed flip.
+MIN_CONSECUTIVE_POLLS = 2
+
 
 def token_url(site_url, kind, token):
     """Build a token-bearing URL (manage/confirm/unsubscribe/extend) --
