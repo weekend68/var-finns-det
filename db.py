@@ -25,12 +25,23 @@ CREATE TABLE IF NOT EXISTS medications (
     -- Product-level NPL id (distinct id-space from npl_pack_id, which is the
     -- PACKAGE-level id) -- needed to link out to FASS Patient
     -- (https://www.fass.se/LIF/product?userType=2&nplId=<npl_id>), which
-    -- only accepts product-level ids. Populated for curated checker.PRODUCTS
-    -- rows via seed_products() and for catalogue rows via
-    -- national_shortages.py's _backfill_medications() (the feed already
-    -- carries npl_id per row). May be NULL for medications resolved only via
-    -- fass.lookup_name()'s package-level fallback in routes/lakemedel.py.
+    -- only accepts product-level ids. Populated via national_shortages.py's
+    -- _backfill_medications() (the feed already carries npl_id per row) --
+    -- including for curated checker.PRODUCTS rows, which get the exact same
+    -- backfill treatment as any other catalogue product (seed_products()
+    -- only ever inserts a bare name==npl_pack_id placeholder). May be NULL
+    -- for medications resolved only via fass.lookup_name()'s package-level
+    -- fallback in routes/lakemedel.py.
     npl_id              TEXT,
+    -- Marketing authorisation holder (Läkemedelsverket's
+    -- MarketAuthorisationHolderName field) -- the actual manufacturer/brand
+    -- owner, e.g. "Sandoz A/S". Populated via national_shortages.py's
+    -- _backfill_medications() (the feed carries this per product) --
+    -- including for curated checker.PRODUCTS rows, same as npl_id above. May
+    -- be NULL for medications resolved only via fass.lookup_name()'s
+    -- package-level fallback in routes/lakemedel.py, which has no access to
+    -- this field.
+    manufacturer        TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -141,6 +152,7 @@ def init_db():
     con.executescript(_SCHEMA)
     _migrate_add_column(con, "medications", "package_description", "TEXT")
     _migrate_add_column(con, "medications", "npl_id", "TEXT")
+    _migrate_add_column(con, "medications", "manufacturer", "TEXT")
     con.commit()
     con.close()
 
@@ -227,7 +239,8 @@ def escape_like(s):
 
 def get_medication(db, npl_pack_id):
     return db.execute(
-        "SELECT npl_pack_id, name, strength, form, package_description, npl_id FROM medications WHERE npl_pack_id=?",
+        "SELECT npl_pack_id, name, strength, form, package_description, npl_id, manufacturer "
+        "FROM medications WHERE npl_pack_id=?",
         [npl_pack_id],
     ).fetchone()
 
@@ -247,27 +260,42 @@ def get_token(db, token, token_type):
 
 
 def is_medication_indexable(db, npl_pack_id):
-    """A medication is only worth indexing (sitemap + index,follow) once it has
-    at least one confirmed subscription, ever — not merely having been searched.
-    Keeps Google's/bots' crawlable surface tied to proven demand instead of
-    growing unboundedly with every curious one-off search."""
+    """A medication is worth indexing (sitemap + index,follow) once it has
+    EITHER at least one confirmed subscription ever, OR real catalogue data
+    from Läkemedelsverket (a row in national_shortages) -- whichever comes
+    first. The subscription condition alone left every one of the ~2500
+    catalogue-only medications (see national_shortages.py) permanently
+    unindexable, since nobody had ever subscribed to them; being in the
+    national shortage catalogue is itself proof of real, verifiable content
+    worth indexing, independent of subscriber demand."""
     row = db.execute(
-        "SELECT 1 FROM subscriptions s JOIN subscribers sub ON s.subscriber_id = sub.id "
-        "WHERE s.npl_pack_id = ? AND sub.confirmed_at IS NOT NULL LIMIT 1",
-        [npl_pack_id],
+        "SELECT 1 WHERE EXISTS ("
+        "  SELECT 1 FROM subscriptions s JOIN subscribers sub ON s.subscriber_id = sub.id "
+        "  WHERE s.npl_pack_id = ? AND sub.confirmed_at IS NOT NULL"
+        ") OR EXISTS ("
+        "  SELECT 1 FROM national_shortages ns WHERE ns.npl_pack_id = ?"
+        ")",
+        [npl_pack_id, npl_pack_id],
     ).fetchone()
     return row is not None
 
 
 def list_medications_for_sitemap(db):
     """Medications qualifying for sitemap.xml — real name (not a placeholder
-    row) and at least one confirmed subscription ever."""
+    row) and either at least one confirmed subscription ever, or a row in
+    national_shortages (Läkemedelsverket catalogue data). Same extended
+    condition as is_medication_indexable() above -- keep the two in sync."""
     return db.execute(
         "SELECT m.npl_pack_id, m.name, m.strength, m.form FROM medications m "
         "WHERE m.name != m.npl_pack_id "
-        "AND EXISTS ("
-        "  SELECT 1 FROM subscriptions s JOIN subscribers sub ON s.subscriber_id = sub.id "
-        "  WHERE s.npl_pack_id = m.npl_pack_id AND sub.confirmed_at IS NOT NULL"
+        "AND ("
+        "  EXISTS ("
+        "    SELECT 1 FROM subscriptions s JOIN subscribers sub ON s.subscriber_id = sub.id "
+        "    WHERE s.npl_pack_id = m.npl_pack_id AND sub.confirmed_at IS NOT NULL"
+        "  )"
+        "  OR EXISTS ("
+        "    SELECT 1 FROM national_shortages ns WHERE ns.npl_pack_id = m.npl_pack_id"
+        "  )"
         ")"
     ).fetchall()
 

@@ -79,6 +79,7 @@ def _parse(xml_source):
         for product in shortage.iter(_tag("MedicinalProduct")):
             npl_id = product.findtext(_tag("NPLId"))
             product_name = product.findtext(_tag("ProductName"))
+            manufacturer = product.findtext(_tag("MarketAuthorisationHolderName"))
             atc_el = product.find(_tag("ATC"))
             atc_code = atc_el.text.strip() if atc_el is not None and atc_el.text else None
             atc_term = atc_el.get("term") if atc_el is not None else None
@@ -93,6 +94,7 @@ def _parse(xml_source):
                     "npl_pack_id": pack_id,
                     "npl_id": npl_id,
                     "product_name": product_name,
+                    "manufacturer": manufacturer,
                     # A single product (npl_id) commonly has several packages
                     # in shortage at once (e.g. Estradot 37,5 mikrogram/24
                     # timmar: 8-pack AND 24-pack, both real, both short) --
@@ -117,21 +119,27 @@ def _parse(xml_source):
 
 def _backfill_medications(db, rows):
     """Insert a real medications row for any npl_pack_id in `rows` that's
-    missing entirely, or update it (name + package_description + npl_id) if
-    it exists only as a name==npl_pack_id placeholder, or if an earlier run
-    of this function already set the name but left package_description or
-    npl_id unset (see below). We already have the real
-    ProductName/PackageDescription/NPLId from this feed, so this
-    deliberately avoids ever needing a live fass.lookup_name() call for
-    catalogue products.
+    missing entirely, or update it (name + package_description + npl_id +
+    manufacturer) if it exists only as a name==npl_pack_id placeholder, or if
+    it's missing package_description, npl_id or manufacturer regardless of
+    what its current name is -- this also covers rows pre-dating this
+    self-healing mechanism (e.g. the old checker.PRODUCTS seeding, which
+    wrote a name/npl_id/manufacturer but never package_description) and
+    fass.lookup_name()'s package-level fallback, neither of which has a
+    reason to have set all three. We already have the real
+    ProductName/PackageDescription/NPLId/MarketAuthorisationHolderName from
+    this feed, so this deliberately avoids ever needing a live
+    fass.lookup_name() call for catalogue products.
 
     Deliberately does NOT set `form` -- that column means "dosage form"
-    (e.g. "depotplåster") for curated checker.PRODUCTS rows, populated
-    explicitly by seed_products(). There's no reliable way to extract just
-    the dosage form from arbitrary freeform ProductName strings across
-    ~2000 different real medications without fragile per-product parsing,
-    so this leaves `form` unset for catalogue rows rather than guess wrong.
-    package_description ("Påse, 8 x 1 depotplåster") is a separate,
+    (e.g. "depotplåster") and there's no reliable way to extract just the
+    dosage form from arbitrary freeform ProductName strings across ~2000
+    different real medications without fragile per-product parsing, so this
+    leaves `form` unset rather than guess wrong. (seed_products() no longer
+    sets it either -- checker.PRODUCTS is curation-only now, its medications
+    rows start out as plain placeholders like any other product and get
+    their real fields from this same backfill.) package_description ("Påse,
+    8 x 1 depotplåster") is a separate,
     genuinely different piece of information (packaging/pack-size, not
     dosage form) -- a single product commonly has multiple packages short
     at once sharing the exact same product_name (e.g. Estradot 37,5
@@ -146,33 +154,37 @@ def _backfill_medications(db, rows):
         chunk = pack_ids[i:i + _SQL_VAR_CHUNK]
         placeholders = ",".join("?" for _ in chunk)
         for row in db.execute(
-            f"SELECT npl_pack_id, name, package_description, npl_id FROM medications WHERE npl_pack_id IN ({placeholders})", chunk
+            f"SELECT npl_pack_id, name, package_description, npl_id, manufacturer FROM medications "
+            f"WHERE npl_pack_id IN ({placeholders})", chunk
         ):
-            existing[row["npl_pack_id"]] = (row["name"], row["package_description"], row["npl_id"])
+            existing[row["npl_pack_id"]] = (row["name"], row["package_description"], row["npl_id"], row["manufacturer"])
 
     to_backfill = []
     for r in rows:
         if not r["product_name"]:
             continue
-        name, package_description, npl_id = existing.get(r["npl_pack_id"], (r["npl_pack_id"], None, None))
+        name, package_description, npl_id, manufacturer = existing.get(
+            r["npl_pack_id"], (r["npl_pack_id"], None, None, None)
+        )
         is_placeholder = name == r["npl_pack_id"]
-        is_our_earlier_backfill_missing_field = name == r["product_name"] and (not package_description or not npl_id)
-        if is_placeholder or is_our_earlier_backfill_missing_field:
+        is_incomplete = not package_description or not npl_id or not manufacturer
+        if is_placeholder or is_incomplete:
             to_backfill.append(r)
 
     if to_backfill:
         db.executemany(
-            "INSERT INTO medications (npl_pack_id, name, package_description, npl_id) VALUES (?, ?, ?, ?) "
+            "INSERT INTO medications (npl_pack_id, name, package_description, npl_id, manufacturer) "
+            "VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(npl_pack_id) DO UPDATE SET name=excluded.name, package_description=excluded.package_description, "
-            "npl_id=excluded.npl_id, "
-            # Clears out `form` for these rows -- only ever reached for
-            # catalogue-only entries (curated rows never match the
-            # is_placeholder/is_our_earlier_backfill_missing_field check
-            # above), so this also self-heals a previous version of this
+            "npl_id=excluded.npl_id, manufacturer=excluded.manufacturer, "
+            # Clears out `form` for these rows (curated checker.PRODUCTS ids
+            # included -- they're plain placeholders here too, see
+            # seed_products()). Also self-heals a previous version of this
             # function that mistakenly wrote package_description-like text
             # into `form` instead of this dedicated column.
             "form=NULL",
-            [(r["npl_pack_id"], r["product_name"], r["package_description"], r["npl_id"]) for r in to_backfill],
+            [(r["npl_pack_id"], r["product_name"], r["package_description"], r["npl_id"], r["manufacturer"])
+             for r in to_backfill],
         )
     return len(to_backfill)
 
