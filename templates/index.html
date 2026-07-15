@@ -184,6 +184,7 @@
           <span class="hero-name-main">{{ name_base }}</span><span class="hero-name-tld">{{ name_tld }}</span>
         </a>
       </div>
+      {% include "_nav.html" %}
       <p class="hero-tagline">Vilket apotek har mitt läkemedel just nu?</p>
       <p class="hero-desc">
         Lagerstatus för alla läkemedel på Sveriges apotek — sök eller välj ett från listan nedan.
@@ -269,13 +270,12 @@
             {% set visible = pharmacies[:show_limit] %}
             {% set hidden  = pharmacies[show_limit:] %}
             <table>
-              <thead><tr><th>Apotek</th><th>Status</th><th>Utbytbar</th></tr></thead>
+              <thead><tr><th>Apotek</th><th>Status</th></tr></thead>
               <tbody>
                 {% for ph in visible %}
                 <tr>
-                  <td>{{ ph.name }}</td>
+                  <td>{{ macros.pharmacy_link(ph, show_address=False) }}</td>
                   <td class="status {{ ph.status | lower }}">{{ macros.pharmacy_status(ph.status) }}</td>
-                  <td>{% if ph.exchangeable %}✓{% endif %}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -287,9 +287,8 @@
                 <tbody>
                   {% for ph in hidden %}
                   <tr>
-                    <td>{{ ph.name }}</td>
+                    <td>{{ macros.pharmacy_link(ph, show_address=False) }}</td>
                     <td class="status {{ ph.status | lower }}">{{ macros.pharmacy_status(ph.status) }}</td>
-                    <td>{% if ph.exchangeable %}✓{% endif %}</td>
                   </tr>
                   {% endfor %}
                 </tbody>

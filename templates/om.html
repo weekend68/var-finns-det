@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Integritetspolicy — {{ site_name }}</title>
+  <title>Om oss — {{ site_name }}</title>
+  <meta name="description" content="Om {{ site_name }} — en gratis tjänst som visar lagerstatus för läkemedel på svenska apotek och skickar e-post när ett restnoterat läkemedel finns igen.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="{{ site_url }}/privacy">
+  <link rel="canonical" href="{{ site_url }}/om">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #222;
@@ -26,8 +27,7 @@
                     text-transform: uppercase; margin-bottom: 0.9rem; }
     .hero-desc { color: #A8C8DC; font-size: 0.875rem; line-height: 1.65; }
     main { flex: 1; padding: 2rem 1.5rem; max-width: 680px; }
-    h1 { font-size: 1.4rem; color: #0D1B2A; margin-bottom: 0.5rem; }
-    .updated { font-size: 0.8rem; color: #888; margin-bottom: 2rem; }
+    h1 { font-size: 1.4rem; color: #0D1B2A; margin-bottom: 1rem; }
     h2 { font-size: 1rem; color: #0D1B2A; margin: 1.75rem 0 0.5rem; }
     p, li { font-size: 0.9rem; line-height: 1.7; color: #333; margin-bottom: 0.5rem; }
     ul { padding-left: 1.25rem; }
@@ -50,55 +50,46 @@
         </a>
       </div>
       {% include "_nav.html" %}
-      <p class="hero-tagline">Integritetspolicy</p>
+      <p class="hero-tagline">Om tjänsten</p>
       <p class="hero-desc">
-        Så hanterar vi dina uppgifter när du bevakar ett läkemedel — vad vi samlar in,
-        varför, och hur länge det sparas.
+        Vad {{ site_name }} är, varifrån informationen kommer, och vem som driver den.
       </p>
     </div>
   </header>
   <main>
-    <h1>Integritetspolicy</h1>
-    <p class="updated">Senast uppdaterad: 2026-07-05</p>
+    <h1>Om {{ site_name }}</h1>
 
-    <h2>Personuppgiftsansvarig</h2>
-    <p>{{ site_name }} (kontakt: hello.johan.moller (a) gmail.com)</p>
-
-    <h2>Vilka uppgifter samlar vi in?</h2>
-    <ul>
-      <li>E-postadress — för att skicka lagernotiser och hantera prenumerationen</li>
-      <li>Val av läkemedel (npl-packs-id, teknisk identifierare) — för att veta vilket läkemedel du vill bevaka</li>
-      <li>Tidpunkt för samtycke och bekräftelse — för GDPR-dokumentation</li>
-    </ul>
-    <p>Vi sparar <strong>inte</strong> postnummer eller annan personlig information i klartext.</p>
-
-    <h2>Rättslig grund</h2>
     <p>
-      Behandlingen sker med stöd av ditt samtycke (artikel 6(1)(a) GDPR). Eftersom
-      läkemedelsinformation kan utgöra hälsodata (artikel 9 GDPR) inhämtar vi även
-      uttryckligt samtycke enligt artikel 9(2)(a).
+      {{ site_name }} är en gratis tjänst som visar lagerstatus för läkemedel på Sveriges apotek.
+      Är ett läkemedel restnoterat (slut) går det att bevaka det — du fyller i din e-postadress
+      och får ett mejl så fort läkemedlet finns i lager igen på något apotek i Sverige.
     </p>
 
-    <h2>Hur länge sparar vi uppgifterna?</h2>
-    <ul>
-      <li>Aktiva prenumerationer löper i {{ ttl_days }} dagar och kan förnyas</li>
-      <li>Inaktiva prenumerationer raderas automatiskt 7 dagar efter utgångsdatum</li>
-      <li>Samtyckesstämpeln (utan känslig data) sparas i 3 år för GDPR-dokumentation</li>
-    </ul>
+    <h2>Varifrån kommer informationen?</h2>
+    <p>
+      Lagerstatus hämtas från <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>,
+      i samarbete med Sveriges Apoteksförening. Uppgifter om nationella bristsituationer — till
+      exempel vilka läkemedel som ingår i samma grupp och kan vara ett alternativ — kommer från
+      Läkemedelsverkets öppna data.
+    </p>
+    <p>
+      {{ site_name }} är inte kopplat till Fass, LIF, Sveriges Apoteksförening eller
+      Läkemedelsverket. Informationen kan vara fördröjd — kontakta alltid ditt apotek för att
+      bekräfta aktuell status innan du åker dit.
+    </p>
 
-    <h2>Dina rättigheter</h2>
-    <p>Du har rätt att:</p>
-    <ul>
-      <li>Avregistrera dig — via länken i varje e-postmeddelande vi skickar</li>
-      <li>Begära radering — kontakta oss via e-post så raderar vi alla dina uppgifter</li>
-      <li>Invända mot behandlingen — kontakta oss eller IMY (imy.se)</li>
-    </ul>
+    <h2>Vem driver sajten?</h2>
+    <p>
+      {{ site_name }} drivs ideellt av Johan Möller, utan koppling till någon myndighet
+      eller något läkemedelsföretag. Kontakta mig gärna på hello.johan.moller (a) gmail.com
+      om du har feedback på tjänsten.
+    </p>
 
-    <h2>Underleverantörer</h2>
-    <ul>
-      <li><strong>Railway</strong> — driftsättning och databas (EU/USA, standardavtalsklausuler)</li>
-      <li><strong>Resend</strong> — e-postleverans (USA, standardavtalsklausuler)</li>
-    </ul>
+    <h2>Integritet</h2>
+    <p>
+      Vill du veta hur vi hanterar dina uppgifter när du bevakar ett läkemedel? Läs vår
+      <a href="/privacy">integritetspolicy</a>.
+    </p>
   </main>
 </body>
 </html>
