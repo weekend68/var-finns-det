@@ -120,16 +120,25 @@ def _parse(xml_source):
 def _backfill_medications(db, rows):
     """Insert a real medications row for any npl_pack_id in `rows` that's
     missing entirely, or update it (name + package_description + npl_id +
-    manufacturer) if it exists only as a name==npl_pack_id placeholder, or if
-    it's missing package_description, npl_id or manufacturer regardless of
-    what its current name is -- this also covers rows pre-dating this
-    self-healing mechanism (e.g. the old checker.PRODUCTS seeding, which
-    wrote a name/npl_id/manufacturer but never package_description) and
-    fass.lookup_name()'s package-level fallback, neither of which has a
-    reason to have set all three. We already have the real
-    ProductName/PackageDescription/NPLId/MarketAuthorisationHolderName from
-    this feed, so this deliberately avoids ever needing a live
-    fass.lookup_name() call for catalogue products.
+    manufacturer + atc_code) if it exists only as a name==npl_pack_id
+    placeholder, or if it's missing package_description, npl_id, manufacturer
+    or atc_code regardless of what its current name is -- this also covers
+    rows pre-dating this self-healing mechanism (e.g. the old
+    checker.PRODUCTS seeding, which wrote a name/npl_id/manufacturer but
+    never package_description or atc_code) and fass.lookup_name()'s
+    package-level fallback, neither of which has a reason to have set all
+    four. We already have the real ProductName/PackageDescription/NPLId/
+    MarketAuthorisationHolderName/ATC from this feed, so this deliberately
+    avoids ever needing a live fass.lookup_name() call for catalogue
+    products.
+
+    atc_code is intentionally sticky once learned, same as the other
+    fields here -- a product leaving the current shortage feed after going
+    back in stock for a long stretch must not "forget" its ATC code (see
+    routes/lakemedel.py's ESTRADIOL_ATC_CODE check, which relies on it
+    staying set indefinitely, unlike _category_breadcrumb()'s direct
+    national_shortages lookup which is fine only ever reflecting the
+    current snapshot).
 
     Deliberately does NOT set `form` -- that column means "dosage form"
     (e.g. "depotplåster") and there's no reliable way to extract just the
@@ -154,36 +163,38 @@ def _backfill_medications(db, rows):
         chunk = pack_ids[i:i + _SQL_VAR_CHUNK]
         placeholders = ",".join("?" for _ in chunk)
         for row in db.execute(
-            f"SELECT npl_pack_id, name, package_description, npl_id, manufacturer FROM medications "
+            f"SELECT npl_pack_id, name, package_description, npl_id, manufacturer, atc_code FROM medications "
             f"WHERE npl_pack_id IN ({placeholders})", chunk
         ):
-            existing[row["npl_pack_id"]] = (row["name"], row["package_description"], row["npl_id"], row["manufacturer"])
+            existing[row["npl_pack_id"]] = (
+                row["name"], row["package_description"], row["npl_id"], row["manufacturer"], row["atc_code"]
+            )
 
     to_backfill = []
     for r in rows:
         if not r["product_name"]:
             continue
-        name, package_description, npl_id, manufacturer = existing.get(
-            r["npl_pack_id"], (r["npl_pack_id"], None, None, None)
+        name, package_description, npl_id, manufacturer, atc_code = existing.get(
+            r["npl_pack_id"], (r["npl_pack_id"], None, None, None, None)
         )
         is_placeholder = name == r["npl_pack_id"]
-        is_incomplete = not package_description or not npl_id or not manufacturer
+        is_incomplete = not package_description or not npl_id or not manufacturer or not atc_code
         if is_placeholder or is_incomplete:
             to_backfill.append(r)
 
     if to_backfill:
         db.executemany(
-            "INSERT INTO medications (npl_pack_id, name, package_description, npl_id, manufacturer) "
-            "VALUES (?, ?, ?, ?, ?) "
+            "INSERT INTO medications (npl_pack_id, name, package_description, npl_id, manufacturer, atc_code) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(npl_pack_id) DO UPDATE SET name=excluded.name, package_description=excluded.package_description, "
-            "npl_id=excluded.npl_id, manufacturer=excluded.manufacturer, "
+            "npl_id=excluded.npl_id, manufacturer=excluded.manufacturer, atc_code=excluded.atc_code, "
             # Clears out `form` for these rows (curated checker.PRODUCTS ids
             # included -- they're plain placeholders here too, see
             # seed_products()). Also self-heals a previous version of this
             # function that mistakenly wrote package_description-like text
             # into `form` instead of this dedicated column.
             "form=NULL",
-            [(r["npl_pack_id"], r["product_name"], r["package_description"], r["npl_id"], r["manufacturer"])
+            [(r["npl_pack_id"], r["product_name"], r["package_description"], r["npl_id"], r["manufacturer"], r["atc_code"])
              for r in to_backfill],
         )
     return len(to_backfill)

@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS medications (
     -- package-level fallback in routes/lakemedel.py, which has no access to
     -- this field.
     manufacturer        TEXT,
+    -- Substance-level ATC code (Läkemedelsverket's ATC field, e.g.
+    -- "G03CA03" for Estradiol). Populated via national_shortages.py's
+    -- _backfill_medications() the same self-healing way as npl_id/
+    -- manufacturer -- once learned it's never cleared, even after the
+    -- product leaves the current shortage feed (an in-stock stretch must
+    -- not make an already-known ATC code "forget" itself). Used to derive
+    -- ATC-category membership (e.g. "is this an Estradiol product") without
+    -- a separate manually-maintained flag -- see routes/lakemedel.py's
+    -- ESTRADIOL_ATC_CODE check, which replaced the old
+    -- checker.PRODUCTS[...]["menopause_related"] flag.
+    atc_code            TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -153,6 +164,7 @@ def init_db():
     _migrate_add_column(con, "medications", "package_description", "TEXT")
     _migrate_add_column(con, "medications", "npl_id", "TEXT")
     _migrate_add_column(con, "medications", "manufacturer", "TEXT")
+    _migrate_add_column(con, "medications", "atc_code", "TEXT")
     con.commit()
     con.close()
 
@@ -239,7 +251,7 @@ def escape_like(s):
 
 def get_medication(db, npl_pack_id):
     return db.execute(
-        "SELECT npl_pack_id, name, strength, form, package_description, npl_id, manufacturer "
+        "SELECT npl_pack_id, name, strength, form, package_description, npl_id, manufacturer, atc_code "
         "FROM medications WHERE npl_pack_id=?",
         [npl_pack_id],
     ).fetchone()

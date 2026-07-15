@@ -49,28 +49,31 @@ _consecutive_positives: dict = {}
 
 # Single source of truth for the hardcoded "always polled, always on the
 # homepage" medications. This is CURATION-only: which npl_pack_ids are always
-# polled against Fass and shown on the homepage, plus the menopause_related
-# flag (used to build MENOPAUSE_RELATED_IDS below, for the partner-guide
-# link). All display data (name, strength, form, npl_id, manufacturer,
-# package) lives in the medications table like any other catalogue product --
-# seed_products() only guarantees a placeholder row exists here so FK
-# dependents (subscriptions, national_shortages) are always satisfiable, and
-# national_shortages.py's daily catalogue sync (or fass.py's self-healing
-# lookup) fills in the real values, exactly as for any non-curated product.
+# polled against Fass and shown on the homepage. All display data (name,
+# strength, form, npl_id, manufacturer, atc_code, package) lives in the
+# medications table like any other catalogue product -- seed_products() only
+# guarantees a placeholder row exists here so FK dependents (subscriptions,
+# national_shortages) are always satisfiable, and national_shortages.py's
+# daily catalogue sync (or fass.py's self-healing lookup) fills in the real
+# values, exactly as for any non-curated product.
+#
+# There used to be a "menopause_related" flag here too, for the
+# partner-guide link -- removed since it was redundant with these products'
+# real ATC code (Estradiol, G03CA03), which national_shortages.py's backfill
+# already learns and persists on medications.atc_code. See
+# routes/lakemedel.py's ESTRADIOL_ATC_CODE check.
 PRODUCTS = [
-    {"npl_pack_id": "20040113100574", "menopause_related": True},
-    {"npl_pack_id": "20011130100489", "menopause_related": True},
-    {"npl_pack_id": "20011130100502", "menopause_related": True},
-    {"npl_pack_id": "20011130100526", "menopause_related": True},
-    {"npl_pack_id": "20011130100564", "menopause_related": True},
-    {"npl_pack_id": "20181129100025", "menopause_related": True},
-    {"npl_pack_id": "20140320100036", "menopause_related": True},
-    {"npl_pack_id": "20160407100353", "menopause_related": True},
-    {"npl_pack_id": "19961001100275", "menopause_related": True},
-    {"npl_pack_id": "20001018100021", "menopause_related": True},
+    {"npl_pack_id": "20040113100574"},
+    {"npl_pack_id": "20011130100489"},
+    {"npl_pack_id": "20011130100502"},
+    {"npl_pack_id": "20011130100526"},
+    {"npl_pack_id": "20011130100564"},
+    {"npl_pack_id": "20181129100025"},
+    {"npl_pack_id": "20140320100036"},
+    {"npl_pack_id": "20160407100353"},
+    {"npl_pack_id": "19961001100275"},
+    {"npl_pack_id": "20001018100021"},
 ]
-
-MENOPAUSE_RELATED_IDS = {p["npl_pack_id"] for p in PRODUCTS if p.get("menopause_related")}
 
 
 def staleness_tier(timestamp_str):
@@ -374,12 +377,12 @@ def polling_loop(prev_in_stock):
         all_products = PRODUCTS + extra
         curated_ids = {p["npl_pack_id"] for p in PRODUCTS}
 
-        # PRODUCTS entries carry curation data only (npl_pack_id +
-        # menopause_related) -- no display name. One combined DB lookup for
-        # ALL actively-polled ids (curated + subscription-only) turns
-        # all_products into enriched dicts carrying "name" from the
-        # medications table, same as any other catalogue product. Falls back
-        # to the raw id if the row is still a name==npl_pack_id placeholder
+        # PRODUCTS entries carry curation data only (npl_pack_id) -- no
+        # display name. One combined DB lookup for ALL actively-polled ids
+        # (curated + subscription-only) turns all_products into enriched
+        # dicts carrying "name" from the medications table, same as any
+        # other catalogue product. Falls back to the raw id if the row is
+        # still a name==npl_pack_id placeholder
         # (e.g. right after a fresh deploy, before the daily catalogue sync
         # or a self-healing lookup has filled in the real name) -- logging/
         # notifications below must never crash on this, they'll just show
