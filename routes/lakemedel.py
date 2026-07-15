@@ -255,16 +255,17 @@ def lakemedel(id_slug):
     in_stock_now = len(pharmacies) > 0
     few_only = in_stock_now and not any(p["status"] == "IN_STOCK" for p in pharmacies)
 
-    # Postnummer lives in a cookie (set client-side, see templates/lakemedel.html),
-    # not the URL -- keeps it out of browser history, copy-pasted links, and
-    # third-party Referer headers. ?omrade= is still accepted as a fallback
-    # (e.g. a manually-typed URL), taking priority if present.
+    # Plain ?omrade= query param -- no cookie, no localStorage. This site
+    # deliberately stores nothing on the visitor's device (see Umami usage
+    # sitewide, chosen specifically to avoid ever needing a cookie-consent
+    # banner), so the postnummer only lives for the current navigation/link,
+    # never remembered across visits.
     #
     # Keep the raw value separate from the normalized (3-digit) omrade --
     # normalize_omrade() truncates a full postnummer down to its matching
     # precision, but redisplaying that truncated value in the postnummer
     # input field looks broken to someone who just typed a full 5-digit code.
-    omrade_input = request.args.get("omrade", "").strip() or request.cookies.get("postnummer", "").strip()
+    omrade_input = request.args.get("omrade", "").strip()
     omrade = normalize_omrade(omrade_input)
     nara, region, rest = group_pharmacies_by_omrade(pharmacies, omrade)
 

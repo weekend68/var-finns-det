@@ -209,12 +209,10 @@
       </form>
       <script>
       (function () {
-        // Remember the visitor's postnummer in a first-party cookie -- NOT
-        // the URL -- so it never ends up in browser history, a copy-pasted
-        // link, or a third-party Referer header. The server reads this
-        // cookie directly (routes/lakemedel.py), no query param needed.
-        var COOKIE_NAME = 'postnummer';
-
+        // Plain URL query param, nothing stored on the device (no cookie,
+        // no localStorage) -- this site deliberately has neither, to avoid
+        // ever needing a cookie-consent banner (see Umami usage sitewide).
+        // The postnummer only lives as long as this one navigation/link.
         document.getElementById('omrade-form').addEventListener('submit', function (e) {
           e.preventDefault();
           // Full postnummer, NOT truncated here -- the server normalizes it
@@ -222,14 +220,9 @@
           // this exact raw value in the field, so it never looks truncated
           // back at the visitor.
           var v = document.getElementById('omrade-input').value.replace(/\D/g, '');
-          if (v) {
-            document.cookie = COOKIE_NAME + '=' + encodeURIComponent(v) + '; path=/; max-age=31536000; samesite=Lax';
-          } else {
-            document.cookie = COOKIE_NAME + '=; path=/; max-age=0; samesite=Lax';
-          }
-          // Reload the current path with no query string -- the cookie
-          // alone carries the postnummer from here on.
-          window.location.href = window.location.pathname;
+          var url = new URL(window.location.href);
+          if (v) { url.searchParams.set('omrade', v); } else { url.searchParams.delete('omrade'); }
+          window.location.href = url.pathname + url.search;
         });
       })();
       </script>
