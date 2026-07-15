@@ -85,10 +85,13 @@
 
         {% if stock_unknown %}
         <a class="btn-watch med-cta-responsive" href="/subscribe?npl={{ npl_pack_id }}">Bevaka det här läkemedlet</a>
+        <p class="med-cta-note">Vi mejlar dig så fort vi kan bekräfta lagerstatus igen.</p>
         {% elif in_stock_now %}
         <a class="btn-watch med-cta-responsive" href="/subscribe?npl={{ npl_pack_id }}">Bevaka &mdash; få e-post om det blir restnoterat</a>
+        <p class="med-cta-note">Vi hör av oss om läget ändras &mdash; annars sker inget.</p>
         {% else %}
         <a class="btn-watch med-cta-responsive" href="/subscribe?npl={{ npl_pack_id }}">Bevaka &mdash; få e-post när det finns igen</a>
+        <p class="med-cta-note">Vi skickar e-post så fort ett apotek har det i lager igen.</p>
         {% endif %}
 
         {% if pharmacies %}

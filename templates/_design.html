@@ -117,21 +117,19 @@
   }
   .btn-watch:hover, .med-cta:hover { filter: brightness(1.08); }
   .med-cta-full { display: block; width: 100%; text-align: center; }
+  .med-cta-note { font-size: 0.76rem; color: var(--muted); margin: 0 0 1.3rem; }
   .med-cta-responsive { display: block; width: 100%; text-align: center; margin-bottom: 1rem; }
   @media (min-width: 600px) { .med-cta-responsive { display: inline-block; width: auto; } }
 
-  /* ---- single click target: whole card links to the detail page, no separate "Mer info" link ---- */
-  .card-link, .pkg-item-link {
+  /* ---- single click target: whole item links to the detail page, no separate "Mer info" link ---- */
+  .pkg-item-link {
     display: block; text-decoration: none; color: inherit;
     transition: box-shadow .15s ease, border-color .15s ease;
   }
-  .card-link:hover, .card-link:focus-visible, .pkg-item-link:hover, .pkg-item-link:focus-visible {
+  .pkg-item-link:hover, .pkg-item-link:focus-visible {
     box-shadow: 0 6px 18px -8px rgba(30,43,51,.2); border-color: #C9C3B6;
   }
-  .card-link:focus-visible, .pkg-item-link:focus-visible { outline: 2px solid var(--cta); outline-offset: 2px; }
-  .card-status-line { display: flex; align-items: center; gap: 0.4rem; font-size: 0.92rem; font-weight: 600; margin: 0.3rem 0 0.6rem; }
-  .card-status-line .visa-status { margin-left: auto; font-family: -apple-system, sans-serif; font-size: 0.78rem; font-weight: 700; color: var(--cta); }
-  .card-meta { font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0; }
+  .pkg-item-link:focus-visible { outline: 2px solid var(--cta); outline-offset: 2px; }
 
   /* ---- misc shared ---- */
   .med-fass-link { color: var(--cta); }
