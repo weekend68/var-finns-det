@@ -103,6 +103,10 @@ def create_app():
     def privacy():
         return render_template("privacy.html", site_name=SITE_NAME, site_url=SITE_URL, ttl_days=SUBSCRIPTION_TTL_DAYS)
 
+    @app.route("/om")
+    def om():
+        return render_template("om.html", site_name=SITE_NAME, site_url=SITE_URL)
+
     @app.route("/robots.txt")
     def robots_txt():
         lines = [
@@ -124,6 +128,7 @@ def create_app():
             meds = list_medications_for_sitemap(db)
             categories = get_shortage_categories(db)
         urls = [SITE_URL + "/"] if SITE_URL else ["/"]
+        urls.append(f"{SITE_URL}/om")
         for m in meds:
             urls.append(medication_url(SITE_URL, m["npl_pack_id"], m["name"], m["strength"], m["form"]))
         urls.append(f"{SITE_URL}/kategorier")

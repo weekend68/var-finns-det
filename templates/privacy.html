@@ -9,7 +9,7 @@
     body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #222;
            min-height: 100vh; display: flex; flex-direction: column; }
     .hero { background: #0D1B2A; border-left: 5px solid #22D3A5; padding: 1rem 1.5rem; }
-    .hero a { color: #22D3A5; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+    .hero a.hero-home { color: #22D3A5; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
     main { flex: 1; padding: 2rem 1.5rem; max-width: 680px; }
     h1 { font-size: 1.4rem; color: #0D1B2A; margin-bottom: 0.5rem; }
     .updated { font-size: 0.8rem; color: #888; margin-bottom: 2rem; }
@@ -22,7 +22,8 @@
 </head>
 <body>
   <header class="hero">
-    <a href="/">{{ site_name }}</a>
+    <a href="/" class="hero-home">{{ site_name }}</a>
+    {% include "_nav.html" %}
   </header>
   <main>
     <h1>Integritetspolicy</h1>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Om oss — {{ site_name }}</title>
+  <meta name="description" content="Om {{ site_name }} — en gratis tjänst som visar lagerstatus för läkemedel på svenska apotek och skickar e-post när ett restnoterat läkemedel finns igen.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="{{ site_url }}/om">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #222;
+           min-height: 100vh; display: flex; flex-direction: column; }
+    .hero { background: #0D1B2A; border-left: 5px solid #22D3A5; padding: 1rem 1.5rem; }
+    .hero a.hero-home { color: #22D3A5; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+    main { flex: 1; padding: 2rem 1.5rem; max-width: 680px; }
+    h1 { font-size: 1.4rem; color: #0D1B2A; margin-bottom: 1rem; }
+    h2 { font-size: 1rem; color: #0D1B2A; margin: 1.75rem 0 0.5rem; }
+    p, li { font-size: 0.9rem; line-height: 1.7; color: #333; margin-bottom: 0.5rem; }
+    ul { padding-left: 1.25rem; }
+    a { color: #22D3A5; }
+  </style>
+  {% include "_umami.html" %}
+</head>
+<body>
+  <header class="hero">
+    <a href="/" class="hero-home">{{ site_name }}</a>
+    {% include "_nav.html" %}
+  </header>
+  <main>
+    <h1>Om {{ site_name }}</h1>
+
+    <p>
+      {{ site_name }} är en gratis tjänst som visar lagerstatus för läkemedel på Sveriges apotek.
+      Är ett läkemedel restnoterat (slut) går det att bevaka det — du fyller i din e-postadress
+      och får ett mejl så fort läkemedlet finns i lager igen på något apotek i Sverige.
+    </p>
+
+    <h2>Varifrån kommer informationen?</h2>
+    <p>
+      Lagerstatus hämtas från <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>,
+      i samarbete med Sveriges Apoteksförening. Uppgifter om nationella bristsituationer — till
+      exempel vilka läkemedel som ingår i samma grupp och kan vara ett alternativ — kommer från
+      Läkemedelsverkets öppna data.
+    </p>
+    <p>
+      {{ site_name }} är inte kopplat till Fass, LIF, Sveriges Apoteksförening eller
+      Läkemedelsverket. Informationen kan vara fördröjd — kontakta alltid ditt apotek för att
+      bekräfta aktuell status innan du åker dit.
+    </p>
+
+    <h2>Vem driver sajten?</h2>
+    <p>
+      {{ site_name }} drivs ideellt av en enskild utvecklare, utan koppling till någon myndighet
+      eller något läkemedelsföretag. Har du frågor eller synpunkter? [kontaktuppgift läggs till]
+    </p>
+
+    <h2>Integritet</h2>
+    <p>
+      Vill du veta hur vi hanterar dina uppgifter när du bevakar ett läkemedel? Läs vår
+      <a href="/privacy">integritetspolicy</a>.
+    </p>
+  </main>
+</body>
+</html>
