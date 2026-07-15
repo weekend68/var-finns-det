@@ -121,11 +121,15 @@ def _backfill_medications(db, rows):
     """Insert a real medications row for any npl_pack_id in `rows` that's
     missing entirely, or update it (name + package_description + npl_id +
     manufacturer) if it exists only as a name==npl_pack_id placeholder, or if
-    an earlier run of this function already set the name but left
-    package_description, npl_id or manufacturer unset (see below). We already
-    have the real ProductName/PackageDescription/NPLId/
-    MarketAuthorisationHolderName from this feed, so this deliberately avoids
-    ever needing a live fass.lookup_name() call for catalogue products.
+    it's missing package_description, npl_id or manufacturer regardless of
+    what its current name is -- this also covers rows pre-dating this
+    self-healing mechanism (e.g. the old checker.PRODUCTS seeding, which
+    wrote a name/npl_id/manufacturer but never package_description) and
+    fass.lookup_name()'s package-level fallback, neither of which has a
+    reason to have set all three. We already have the real
+    ProductName/PackageDescription/NPLId/MarketAuthorisationHolderName from
+    this feed, so this deliberately avoids ever needing a live
+    fass.lookup_name() call for catalogue products.
 
     Deliberately does NOT set `form` -- that column means "dosage form"
     (e.g. "depotplåster") and there's no reliable way to extract just the
@@ -163,10 +167,8 @@ def _backfill_medications(db, rows):
             r["npl_pack_id"], (r["npl_pack_id"], None, None, None)
         )
         is_placeholder = name == r["npl_pack_id"]
-        is_our_earlier_backfill_missing_field = name == r["product_name"] and (
-            not package_description or not npl_id or not manufacturer
-        )
-        if is_placeholder or is_our_earlier_backfill_missing_field:
+        is_incomplete = not package_description or not npl_id or not manufacturer
+        if is_placeholder or is_incomplete:
             to_backfill.append(r)
 
     if to_backfill:
