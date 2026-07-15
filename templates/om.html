@@ -10,94 +10,55 @@
   <meta name="twitter:card"        content="summary">
   <meta name="twitter:title"       content="Om {{ site_name }}">
   <meta name="twitter:description" content="Om {{ site_name }} — en gratis tjänst som visar lagerstatus för läkemedel på svenska apotek och skickar e-post när ett restnoterat läkemedel finns igen.">
+  {% include "_design.html" %}
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #222;
-           min-height: 100vh; display: flex; flex-direction: column; }
-    .hero {
-      background: #0D1B2A;
-      background-image: radial-gradient(#1E3A52 1px, transparent 1px);
-      background-size: 40px 40px;
-      border-left: 5px solid #22D3A5;
-      padding: 2rem 1.5rem 1.75rem;
-    }
-    .hero-inner { max-width: 720px; }
-    .hero-top { display: flex; align-items: center; justify-content: space-between;
-                flex-wrap: wrap; gap: 0.4rem 1.5rem; margin-bottom: 1rem; }
-    .hero-brand { display: flex; align-items: center; gap: 0.6rem; }
-    .hero-name { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
-    .hero-name-main { color: #EEF4F8; }
-    .hero-name-tld  { color: #22D3A5; }
-    .hero-tagline { color: #8CAFC7; font-size: 0.8rem; letter-spacing: 0.06em;
-                    text-transform: uppercase; margin-bottom: 0.9rem; }
-    .hero-desc { color: #A8C8DC; font-size: 0.875rem; line-height: 1.65; }
-    main { flex: 1; padding: 2rem 1.5rem; max-width: 680px; }
-    h1 { font-size: 1.4rem; color: #0D1B2A; margin-bottom: 1rem; }
-    h2 { font-size: 1rem; color: #0D1B2A; margin: 1.75rem 0 0.5rem; }
-    p, li { font-size: 0.9rem; line-height: 1.7; color: #333; margin-bottom: 0.5rem; }
-    ul { padding-left: 1.25rem; }
-    a { color: #22D3A5; }
+    .med-main { max-width: 680px; margin: 0 auto; padding: 1.4rem 1.2rem 2.4rem; }
   </style>
   {% include "_umami.html" %}
 </head>
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <div class="hero-top">
-        <div class="hero-brand">
-          <svg width="36" height="16" viewBox="0 0 36 16" aria-hidden="true" style="flex-shrink:0">
-            <rect x="0" y="0" width="36" height="16" rx="8" fill="none" stroke="#22D3A5" stroke-width="1.5"/>
-            <line x1="18" y1="0" x2="18" y2="16" stroke="#22D3A5" stroke-width="1.5"/>
-            <clipPath id="pill-lh"><rect x="0" y="0" width="18" height="16"/></clipPath>
-            <rect x="0" y="0" width="36" height="16" rx="8" fill="#22D3A5" clip-path="url(#pill-lh)"/>
-          </svg>
-          <a href="/" class="hero-name" style="text-decoration:none">
-            <span class="hero-name-main">{{ name_base }}</span><span class="hero-name-tld">{{ name_tld }}</span>
-          </a>
-        </div>
-        {% include "_nav.html" %}
-      </div>
-      <p class="hero-tagline">Om tjänsten</p>
-      <p class="hero-desc">
-        Vad {{ site_name }} är, varifrån informationen kommer, och vem som driver den.
-      </p>
-    </div>
-  </header>
+  {% set nav_active = 'om' %}
+  {% set hero_desc = "Vad " + site_name + " är, varifrån informationen kommer, och vem som driver den." %}
+  {% include "_header.html" %}
   <main>
-    <h1>Om {{ site_name }}</h1>
+    <div class="med-main">
+      <div class="card">
+        <h1 class="med-h1">Om {{ site_name }}</h1>
 
-    <p>
-      {{ site_name }} är en gratis tjänst som visar lagerstatus för läkemedel på Sveriges apotek.
-      Är ett läkemedel restnoterat (slut) går det att bevaka det — du fyller i din e-postadress
-      och får ett mejl så fort läkemedlet finns i lager igen på något apotek i Sverige.
-    </p>
+        <p class="med-p">
+          {{ site_name }} är en gratis tjänst som visar lagerstatus för läkemedel på Sveriges apotek.
+          Är ett läkemedel restnoterat (slut) går det att bevaka det — du fyller i din e-postadress
+          och får ett mejl så fort läkemedlet finns i lager igen på något apotek i Sverige.
+        </p>
 
-    <h2>Varifrån kommer informationen?</h2>
-    <p>
-      Lagerstatus hämtas från <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>,
-      i samarbete med Sveriges Apoteksförening. Uppgifter om nationella bristsituationer — till
-      exempel vilka läkemedel som ingår i samma grupp och kan vara ett alternativ — kommer från
-      <a href="https://www.lakemedelsverket.se/sv/om-webbplatsen/oppna-data" target="_blank" rel="noopener">Läkemedelsverkets öppna data</a>,
-      publicerad under licensen <a href="https://creativecommons.org/licenses/by/4.0/deed.sv" target="_blank" rel="noopener">Creative Commons Erkännande 4.0 (CC BY 4.0)</a>.
-    </p>
-    <p>
-      {{ site_name }} är inte kopplat till Fass, LIF, Sveriges Apoteksförening eller
-      Läkemedelsverket. Informationen kan vara fördröjd — kontakta alltid ditt apotek för att
-      bekräfta aktuell status innan du åker dit.
-    </p>
+        <h2 class="med-h2">Varifrån kommer informationen?</h2>
+        <p class="med-p">
+          Lagerstatus hämtas från <a href="https://fass.se" target="_blank" rel="noopener">Fass.se</a>,
+          i samarbete med Sveriges Apoteksförening. Uppgifter om nationella bristsituationer — till
+          exempel vilka läkemedel som ingår i samma grupp och kan vara ett alternativ — kommer från
+          <a href="https://www.lakemedelsverket.se/sv/om-webbplatsen/oppna-data" target="_blank" rel="noopener">Läkemedelsverkets öppna data</a>,
+          publicerad under licensen <a href="https://creativecommons.org/licenses/by/4.0/deed.sv" target="_blank" rel="noopener">Creative Commons Erkännande 4.0 (CC BY 4.0)</a>.
+        </p>
+        <p class="med-p">
+          {{ site_name }} är inte kopplat till Fass, LIF, Sveriges Apoteksförening eller
+          Läkemedelsverket. Informationen kan vara fördröjd — kontakta alltid ditt apotek för att
+          bekräfta aktuell status innan du åker dit.
+        </p>
 
-    <h2>Vem driver sajten?</h2>
-    <p>
-      {{ site_name }} drivs ideellt av Johan Möller, utan koppling till någon myndighet
-      eller något läkemedelsföretag. Kontakta mig gärna på hello.johan.moller (a) gmail.com
-      om du har feedback på tjänsten.
-    </p>
+        <h2 class="med-h2">Vem driver sajten?</h2>
+        <p class="med-p">
+          {{ site_name }} drivs ideellt av Johan Möller, utan koppling till någon myndighet
+          eller något läkemedelsföretag. Kontakta mig gärna på hello.johan.moller (a) gmail.com
+          om du har feedback på tjänsten.
+        </p>
 
-    <h2>Integritet</h2>
-    <p>
-      Vill du veta hur vi hanterar dina uppgifter när du bevakar ett läkemedel? Läs vår
-      <a href="/privacy">integritetspolicy</a>.
-    </p>
+        <h2 class="med-h2">Integritet</h2>
+        <p class="med-p">
+          Vill du veta hur vi hanterar dina uppgifter när du bevakar ett läkemedel? Läs vår
+          <a href="/privacy">integritetspolicy</a>.
+        </p>
+      </div>
+    </div>
   </main>
 </body>
 </html>

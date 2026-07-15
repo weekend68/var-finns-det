@@ -5,74 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mina bevakningar — {{ site_name }}</title>
   <meta name="robots" content="noindex">
+  {% include "_design.html" %}
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f0f4f8; color: #222;
-           min-height: 100vh; display: flex; flex-direction: column; }
-    .hero { background: #0D1B2A; border-left: 5px solid #22D3A5; padding: 1rem 1.5rem; }
-    .hero a { color: #22D3A5; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
-    main { flex: 1; padding: 2rem 1.5rem; max-width: 600px; }
-    h1 { font-size: 1.3rem; color: #0D1B2A; margin-bottom: 0.3rem; }
-    .email { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
-    .sub-card { background: #fff; border-radius: 8px; padding: 1.25rem 1.5rem;
-                box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 1rem;
-                display: flex; align-items: center; gap: 1rem; }
-    .sub-info { flex: 1; }
-    .sub-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.2rem; }
-    .sub-meta { font-size: 0.8rem; color: #888; }
-    form button {
-      background: none; border: 1.5px solid #e0e0e0; border-radius: 6px;
-      padding: 0.45rem 0.9rem; color: #888; font-size: 0.8rem; cursor: pointer;
-      font-family: inherit; transition: all .15s;
-    }
-    form button:hover { border-color: #c0392b; color: #c0392b; background: #fff5f5; }
-    .empty { color: #888; font-style: italic; padding: 1rem 0; }
-    .add-btn { display: inline-block; margin-top: 1.5rem; background: #22D3A5;
-               color: #0D1B2A; font-weight: 600; padding: 0.65rem 1.25rem;
-               border-radius: 6px; text-decoration: none; font-size: 0.9rem; }
-    .add-btn:hover { background: #1bb890; }
+    .med-main { max-width: 560px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .sub-list { margin-top: 0.9rem; }
+    .sub-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 0.7rem; }
+    .sub-row:last-child { margin-bottom: 0; }
+    .sub-row-name { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; font-size: 0.98rem; color: var(--ink); line-height: 1.35; }
+    .sub-row-name.sub-row-unknown { font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.85rem; font-style: italic; color: var(--muted); }
+    .sub-row-meta { margin-top: 0.25rem; font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace; font-variant-numeric: tabular-nums; font-size: 0.78rem; color: var(--muted); }
+    .sub-remove-btn { flex-shrink: 0; padding: 0.4rem 0.85rem; font-size: 0.82rem; font-family: -apple-system, "Segoe UI", sans-serif; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; }
+    .sub-remove-btn:hover, .sub-remove-btn:focus-visible { color: var(--stock-out); border-color: var(--stock-out); background: rgba(181, 72, 46, 0.06); }
+    .sub-empty { font-style: italic; color: var(--muted); font-size: 0.92rem; padding: 0.5rem 0 0.2rem; margin: 0; }
   </style>
   {% include "_umami.html" %}
 </head>
 <body>
-  <header class="hero">
-    <a href="/">{{ site_name }}</a>
-  </header>
+  {% set header_mode = 'minimal' %}
+  {% include "_header.html" %}
   <main>
-    <h1>Dina bevakningar</h1>
-    <p class="email">{{ email }}</p>
+    <div class="med-main">
+      <h1 class="med-h1">Dina bevakningar</h1>
+      <p class="med-subtitle">{{ email }}</p>
 
-    {% if subscriptions %}
-      {% for s in subscriptions %}
-      <div class="sub-card">
-        <div class="sub-info">
-          <div class="sub-name">
-            {% if s.name == s.npl_pack_id %}
-              Okänt läkemedel
-              <span style="color:#aaa;font-size:.75rem;font-weight:400">({{ s.npl_pack_id }})</span>
-            {% else %}
-              {{ s.name }}
-            {% endif %}
+      <div class="card">
+        {% if subscriptions %}
+        <div class="sub-list">
+          {% for s in subscriptions %}
+          <div class="sub-row">
+            <div>
+              {% if s.name == s.npl_pack_id %}
+              <div class="sub-row-name sub-row-unknown">Okänt läkemedel ({{ s.npl_pack_id }})</div>
+              {% else %}
+              <div class="sub-row-name">{{ s.name }}</div>
+              {% endif %}
+              <div class="sub-row-meta">
+                Löper ut {{ s.expires_at[:10] }}
+                {% if s.last_notified_at %}
+                &middot; Senast aviserad {{ s.last_notified_at[:10] }}
+                {% endif %}
+              </div>
+            </div>
+            <form method="POST" action="/manage/{{ token }}/remove"
+                  onsubmit="return confirm('Ta bort bevakning?')">
+              <input type="hidden" name="subscription_id" value="{{ s.id }}">
+              <button class="sub-remove-btn" type="submit">Ta bort</button>
+            </form>
           </div>
-          <div class="sub-meta">
-            Löper ut {{ s.expires_at[:10] }}
-            {% if s.last_notified_at %}
-              &middot; Senast aviserad {{ s.last_notified_at[:10] }}
-            {% endif %}
-          </div>
+          {% endfor %}
         </div>
-        <form method="POST" action="/manage/{{ token }}/remove"
-              onsubmit="return confirm('Ta bort bevakning?')">
-          <input type="hidden" name="subscription_id" value="{{ s.id }}">
-          <button type="submit">Ta bort</button>
-        </form>
+        {% else %}
+        <p class="sub-empty">Du har inga aktiva bevakningar.</p>
+        {% endif %}
       </div>
-      {% endfor %}
-    {% else %}
-      <p class="empty">Du har inga aktiva bevakningar.</p>
-    {% endif %}
 
-    <a class="add-btn" href="/">+ Bevaka ett nytt läkemedel</a>
+      <a href="/" class="med-cta med-cta-full">+ Bevaka ett nytt läkemedel</a>
+    </div>
   </main>
 </body>
 </html>
