@@ -15,6 +15,13 @@ from slugs import category_url, medication_url, slugify_medication
 
 bp = Blueprint("lakemedel", __name__)
 
+# Läkemedelsverket's ATC code for Estradiol (verified against the national
+# shortage feed) -- the partner-guide/klimakteriet puff shows on any
+# medication page whose learned ATC code matches this, replacing the old
+# manually-maintained checker.PRODUCTS[...]["menopause_related"] flag with a
+# real, derivable fact. See medications.atc_code's docstring in db.py.
+ESTRADIOL_ATC_CODE = "G03CA03"
+
 # lakemedel.html must stay strictly informational (availability facts only).
 # No promotional/purchase-inducing language ("köp nu", price comparisons,
 # urgency framing) -- several tracked products are prescription-only, and
@@ -364,7 +371,7 @@ def lakemedel(id_slug):
         siblings=siblings,
         category=category,
         indexable=indexable,
-        show_partner_guide=npl_pack_id in checker.MENOPAUSE_RELATED_IDS,
+        show_partner_guide=med["atc_code"] == ESTRADIOL_ATC_CODE,
         canonical_url=canonical_url,
         og_image=og_image,
         jsonld=jsonld,
