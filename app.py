@@ -9,6 +9,7 @@ import faq as faq_builder
 from config import SITE_URL, SUBSCRIPTION_TTL_DAYS
 from db import get_db, init_db, list_medications_for_sitemap
 from national_shortages import get_shortage_categories
+from seo import truncate_title
 from slugs import category_url, medication_url
 
 SITE_NAME = os.getenv("SITE_NAME", "varfinnsdet.se")
@@ -74,6 +75,7 @@ def _template_vars():
 
 def create_app():
     app = Flask(__name__)
+    app.jinja_env.filters["truncate_title"] = truncate_title
 
     @app.after_request
     def set_referrer_policy(response):

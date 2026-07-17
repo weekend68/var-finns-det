@@ -4,13 +4,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ med.name }} — lagerstatus | {{ site_name }}</title>
+  <title>{{ med.name | truncate_title(' — lagerstatus | ' ~ site_name) }}</title>
   <meta name="description" content="Är {{ med.name }} slut på ditt apotek? Se lagerstatus för din medicin och bevaka läkemedlet gratis — få e-post när det finns igen.">
   <meta name="robots" content="{{ 'index, follow' if indexable else 'noindex, follow' }}">
   <link rel="canonical" href="{{ canonical_url }}">
   <meta property="og:type"        content="website">
   <meta property="og:site_name"   content="{{ site_name }}">
-  <meta property="og:title"       content="{{ med.name }} — lagerstatus">
+  <meta property="og:title"       content="{{ med.name | truncate_title(' — lagerstatus') }}">
   <meta property="og:description" content="Är {{ med.name }} slut på ditt apotek? Se lagerstatus för din medicin och bevaka läkemedlet gratis — få e-post när det finns igen.">
   <meta property="og:url"         content="{{ canonical_url }}">
   {% if og_image %}
@@ -20,7 +20,7 @@
   {% endif %}
   <meta property="og:locale"      content="sv_SE">
   <meta name="twitter:card"        content="summary_large_image">
-  <meta name="twitter:title"       content="{{ med.name }} — lagerstatus | {{ site_name }}">
+  <meta name="twitter:title"       content="{{ med.name | truncate_title(' — lagerstatus | ' ~ site_name) }}">
   <meta name="twitter:description" content="Är {{ med.name }} slut på ditt apotek? Se lagerstatus för din medicin och bevaka läkemedlet gratis — få e-post när det finns igen.">
   {% if og_image %}<meta name="twitter:image" content="{{ og_image }}">{% endif %}
   <script type="application/ld+json">{{ jsonld_faq | tojson }}</script>

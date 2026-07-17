@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }} | {{ site_name }}</title>
+  <title>{{ title | truncate_title(' | ' ~ site_name) }}</title>
   <meta name="description" content="{{ intro or (title + ' — se alla berörda produkter och deras lagerstatus.') }}">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="{{ canonical_url }}">
   <meta property="og:type"        content="website">
   <meta property="og:site_name"   content="{{ site_name }}">
-  <meta property="og:title"       content="{{ title }}">
+  <meta property="og:title"       content="{{ title | truncate_title() }}">
   <meta property="og:description" content="{{ intro or (title + ' — se alla berörda produkter och deras lagerstatus.') }}">
   <meta property="og:url"         content="{{ canonical_url }}">
   {% if og_image %}
@@ -19,7 +19,7 @@
   {% endif %}
   <meta property="og:locale"      content="sv_SE">
   <meta name="twitter:card"        content="{{ 'summary_large_image' if og_image else 'summary' }}">
-  <meta name="twitter:title"       content="{{ title }}">
+  <meta name="twitter:title"       content="{{ title | truncate_title() }}">
   <meta name="twitter:description" content="{{ intro or (title + ' — se alla berörda produkter och deras lagerstatus.') }}">
   {% if og_image %}<meta name="twitter:image" content="{{ og_image }}">{% endif %}
   <script type="application/ld+json">{{ jsonld_faq | tojson }}</script>
