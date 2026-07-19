@@ -1,3 +1,5 @@
+import csv
+import io
 import secrets
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -238,4 +240,29 @@ def admin():
         weekly=weekly,
         confirmed_subscribers=confirmed_subscribers,
         active_subscriptions=active_subscriptions,
+    )
+
+
+@bp.route("/admin/poll-log.csv")
+def poll_log_csv():
+    """Raw poll_log dump for offline flapping-pattern analysis (run-length,
+    isolated-blip frequency, threshold simulation) -- no aggregate view of
+    this exists elsewhere, and the data isn't PII (medication stock counts,
+    no subscriber info), so a plain CSV download behind the same admin auth
+    as the dashboard above is enough; no need for a dedicated export UI."""
+    with get_db() as db:
+        rows = db.execute("""
+            SELECT polled_at, npl_pack_id, name, pharmacy_count, glns_checked, notified
+            FROM poll_log ORDER BY polled_at
+        """).fetchall()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["polled_at", "npl_pack_id", "name", "pharmacy_count", "glns_checked", "notified"])
+    for r in rows:
+        writer.writerow([r["polled_at"], r["npl_pack_id"], r["name"], r["pharmacy_count"], r["glns_checked"], r["notified"]])
+
+    return Response(
+        buf.getvalue(), mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=poll_log.csv"},
     )
