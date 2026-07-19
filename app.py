@@ -108,6 +108,12 @@ def create_app():
     def og_image():
         return app.send_static_file("og-image.png")
 
+    @app.route("/favicon.ico")
+    def favicon_ico():
+        # Browsers request this root path directly regardless of the
+        # <link rel="icon"> tags in <head> -- without this route it just 404s.
+        return app.send_static_file("favicon.ico")
+
     @app.route("/healthz")
     def healthz():
         with checker.state_lock:
