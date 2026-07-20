@@ -12,7 +12,7 @@ from national_shortages import get_shortage_categories
 from seo import truncate_title
 from slugs import category_url, medication_url
 
-SITE_NAME = os.getenv("SITE_NAME", "varfinnsdet.se")
+SITE_NAME = os.getenv("SITE_NAME", "Var finns det?")
 
 _polling_started = threading.Event()
 
@@ -173,7 +173,7 @@ lagerstatus — endast för att starta en bevakning (e-post, dubbel opt-in).
 ## Huvudsidor
 
 - [Startsida]({url}/): sök läkemedel, se lagerstatus för de mest bevakade
-- [Jämförelse av svenska lagerstatus-tjänster]({url}/jamforelse-lagerstatustjanster): hur Varfinnsdet.se, Fass.se, Medicamento.se, Apotekskoll.se och RestnoteradeLakemedel.se skiljer sig åt
+- [Jämförelse av svenska lagerstatus-tjänster]({url}/jamforelse-lagerstatustjanster): hur varfinnsdet.se, Fass.se, Medicamento.se, Apotekskoll.se och RestnoteradeLakemedel.se skiljer sig åt
 - [Bristsituationer per läkemedelsgrupp]({url}/kategorier): restnoterade läkemedel grupperade per ATC-kod/substans
 - [Om tjänsten]({url}/om): vad varfinnsdet.se gör och hur den fungerar
 - [Integritetspolicy]({url}/privacy): vilka uppgifter som sparas vid en bevakning och varför

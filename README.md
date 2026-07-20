@@ -140,7 +140,7 @@ SQLite på Railway persistent volym (`/data/medicinstatus.db`).
 
 ```bash
 pip install -r requirements.txt
-export SITE_NAME="varfinnsdet.se"
+export SITE_NAME="Var finns det?"
 export SITE_URL="http://localhost:5000"
 flask --app "app:create_app()" run
 ```
@@ -161,4 +161,4 @@ Utan `RESEND_API_KEY` skickas inga mejl — sajten fungerar i övrigt fullt ut.
 
 ## Datakällor
 
-Lagerstatus hämtas från Fass.se i samarbete med Sveriges Apoteksförening. Informationen kan vara fördröjd — kontakta alltid ditt apotek för aktuell status. Varfinnsdet.se är inte kopplat till Fass, LIF eller Sveriges Apoteksförening.
+Lagerstatus hämtas från Fass.se i samarbete med Sveriges Apoteksförening. Informationen kan vara fördröjd — kontakta alltid ditt apotek för aktuell status. Var finns det? är inte kopplat till Fass, LIF eller Sveriges Apoteksförening.
