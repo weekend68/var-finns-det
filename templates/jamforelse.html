@@ -184,6 +184,7 @@
             <th>Medicamento.se</th>
             <th>Apotekskoll.se</th>
             <th>RestnoteradeLakemedel.se</th>
+            <th>restnoteradmedicin.se</th>
           </tr>
         </thead>
         <tbody>
@@ -194,6 +195,7 @@
             <td>🟢 Ja</td>
             <td>🟢 Ja</td>
             <td>🟡 Ja (i restlistan)</td>
+            <td>🔴 Nej – ingen sökruta. Hela listan (16 000+ poster, ~330 sidor) skickas till webbläsaren som en enda ~10 MB sida; "sökning" är förgenererade länkar per exakt produktnamn, inte fritextsökning.</td>
           </tr>
           <tr>
             <td>Bevakning/notifiering</td>
@@ -202,6 +204,7 @@
             <td>🟡 Ja, betald Plus-nivå</td>
             <td>🔴 Nej</td>
             <td>🟡 Ja, riktad till vårdpersonal</td>
+            <td>🔴 Nej</td>
           </tr>
           <tr>
             <td>Data om restnoteringar (orsak/prognos)</td>
@@ -210,6 +213,7 @@
             <td>🔴 Ej framträdande</td>
             <td>🔴 Nej, hänvisar vidare</td>
             <td>🟢 Ja – kärnfunktionen (orsak, prognos, ATC-kod)</td>
+            <td>🟡 Start-/slutdatum och ATC-kod per förpackning, men orsak är ofta dold ("företaget har inte godkänt publicering") och siffrorna är identiska med RestnoteradeLakemedel.se</td>
           </tr>
           <tr>
             <td>Kostnad</td>
@@ -218,6 +222,7 @@
             <td>🟡 Gratis + betald nivå</td>
             <td>🟢 Gratis (donationsdriven)</td>
             <td>🟡 Gratis + kommersiell B2B-del</td>
+            <td>🟢 Gratis</td>
           </tr>
           <tr>
             <td>Vem driver tjänsten?</td>
@@ -226,6 +231,7 @@
             <td>🔴 Ej offentligt angivet</td>
             <td>🔴 Ej offentligt angivet</td>
             <td>🟢 AtrimusRx AB, org.nr 559066-0725</td>
+            <td>🔴 Ej offentligt angivet – ingen om-oss-, kontakt- eller footer-information om ägaren hittades</td>
           </tr>
         </tbody>
       </table>
@@ -278,19 +284,13 @@
       <p class="service-limits"><strong>Begränsningar:</strong> Visar inte enskilda apotekslager. Drivs av AtrimusRx AB, som på samma sida även säljer licensalternativ till vårdgivare – värt att känna till av transparensskäl. Bevakningsfunktionen riktar sig i första hand till verksamheter, inte privatpersoner.</p>
     </div>
 
-    <h3>Om restnoteradmedicin.se</h3>
-    <p>
-      Vi har även granskat restnoteradmedicin.se, som också presenterar restnoterade läkemedel.
-      Vid vår genomgång visade sidan exakt samma sammanräkningar (1001 pågående, 163 kommande
-      restnoteringar) som RestnoteradeLakemedel.se, vilket tyder på att den bygger på samma
-      Läkemedelsverket-data snarare än att vara en oberoende tjänst med eget värde. Precis som
-      Medicamento.se och Apotekskoll.se går det inte att se vilken organisation som ligger
-      bakom sajten – det är alltså inte i sig skälet till att vi utesluter den. Skälet är att
-      den vid granskningstillfället innehöll länkar till orelaterat innehåll utan koppling till
-      läkemedel, tillsammans med att den inte tycks tillföra något utöver att paketera om
-      samma siffror som RestnoteradeLakemedel.se. Vi väljer därför att inte inkludera den i
-      huvudjämförelsen ovan.
-    </p>
+    <div class="service-card">
+      <h3>restnoteradmedicin.se</h3>
+      <p class="service-meta">Presenterar samma typ av restnoteringsdata som RestnoteradeLakemedel.se – men vid närmare granskning tillför den inget eget värde och har flera kvalitetsproblem.</p>
+      <p class="service-meta"><span>Målgrupp: allmänheten (otydligt uttalat)</span><span>Söker "nära mig"/postnummer: Nej</span><span>Konto krävs: Nej</span><span>Historik över tillgänglighet: Endast "senast uppdaterad"-tidsstämpel</span></p>
+      <p class="service-strengths"><strong>Styrkor:</strong> Ingen kostnad, ingen inloggning krävs.</p>
+      <p class="service-limits"><strong>Begränsningar:</strong> Ingen sökruta – hela databasen (16 000+ poster) laddas som en enda ~10 MB sida per besök, vilket gör tjänsten långsam och otymplig. Siffrorna (1001 pågående, 163 kommande restnoteringar vid vår genomgång) var identiska med RestnoteradeLakemedel.se, vilket tyder på ompaketerad Läkemedelsverket-data snarare än eget värde. Vi hittade konkreta länkar till helt orelaterat innehåll både i listvyn ("Omegle Alternative") och på en produktsida ("Sömnproblem – hjälp och råd"). Ingen om-oss-, kontakt- eller footer-information om vem som driver sajten. Av dessa skäl har vi valt att inte inkludera den i huvudrekommendationen, trots att den nu ingår i jämförelsetabellen ovan för transparens.</p>
+    </div>
 
     <hr class="divider">
 
