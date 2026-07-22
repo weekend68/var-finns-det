@@ -166,6 +166,11 @@ def create_app():
             "Disallow: /api/",
             "Disallow: /admin",
             "Disallow: /log",
+            # Explicit opt-in on all three axes (contentsignals.org draft) --
+            # the whole point of this site is to be read, searched and
+            # cited by AI assistants (see llms.txt), so there's no reason
+            # to restrict any of them.
+            "Content-Signal: ai-train=yes, search=yes, ai-input=yes",
         ]
         if SITE_URL:
             lines.append(f"Sitemap: {SITE_URL}/sitemap.xml")
