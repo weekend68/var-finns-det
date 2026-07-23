@@ -36,6 +36,8 @@
     td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
     .empty { color: #999; font-style: italic; font-size: 0.88rem; }
     .caption { font-size: 0.78rem; color: #999; margin-top: 0.75rem; line-height: 1.5; }
+    .pct-high { color: #b3441e; font-weight: 700; }
+    .pct-mid { color: #9a7a1e; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -160,6 +162,35 @@
           {% endfor %}
         </tbody>
       </table>
+      {% else %}
+      <p class="empty">Ingen data ännu.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Fass-hämtningskvalitet, senaste 14 dagarna</h2>
+      {% if fetch_quality %}
+      <table>
+        <thead><tr><th>Datum</th><th>Rader</th><th>Med bortfall</th><th>Bortfall</th></tr></thead>
+        <tbody>
+          {% for row in fetch_quality %}
+          <tr>
+            <td>{{ row.day }}</td>
+            <td>{{ row.n }}</td>
+            <td>{{ row.n_with_failures }}</td>
+            <td class="{{ 'pct-high' if row.failure_pct >= 5 else ('pct-mid' if row.failure_pct >= 1 else '') }}">{{ row.failure_pct }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="caption">
+        Andel apotek som inte gick att kolla mot Fass (av alla försök den
+        dagen, alla bevakade läkemedel). "Med bortfall" = antal
+        produkt/cykel-rader med minst ett misslyckat apotek. Används för att
+        se om <code>STAGGER_SECONDS</code> (tillagd 2026-07-23, sprider ut
+        de parallella Fass-anropen istället för att skjuta iväg alla på en
+        gång) faktiskt minskar bortfallet över tid.
+      </p>
       {% else %}
       <p class="empty">Ingen data ännu.</p>
       {% endif %}

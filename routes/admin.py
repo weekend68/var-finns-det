@@ -1,7 +1,7 @@
 import csv
 import io
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, Response, abort, render_template, request
@@ -200,17 +200,64 @@ def _curated_vs_catalog(db, days=30):
 
 def _weekly_new_subscriptions(db, weeks=8):
     """Nya BEKRÄFTADE bevakningar per vecka -- samma confirmed_at-filter som
-    _curated_vs_catalog(), av samma skäl."""
+    _curated_vs_catalog(), av samma skäl.
+
+    Grupperas i Python med datetime.isocalendar() -- SQLite's strftime('%W')
+    är INTE svenska veckonummer. %W räknar bara "dagar sedan 1 jan / 7",
+    medan svenska veckor (liksom ISO 8601) utgår från måndag som första
+    veckodag och definierar vecka 1 som veckan som innehåller årets första
+    torsdag -- de två glider isär vid varje årsskifte och för år där 1
+    januari inte infaller på en måndag."""
     rows = db.execute("""
-        SELECT strftime('%Y-W%W', s.created_at) AS week, COUNT(*) AS cnt
-        FROM subscriptions s
+        SELECT s.created_at FROM subscriptions s
         JOIN subscribers sub ON s.subscriber_id = sub.id
         WHERE sub.confirmed_at IS NOT NULL AND sub.deleted_at IS NULL
-        GROUP BY week
-        ORDER BY week DESC
-        LIMIT ?
-    """, [weeks]).fetchall()
-    return list(rows)
+    """).fetchall()
+
+    counts = {}
+    for r in rows:
+        dt = datetime.strptime(r["created_at"], "%Y-%m-%d %H:%M:%S")
+        iso_year, iso_week, _ = dt.isocalendar()
+        key = f"{iso_year}-W{iso_week:02d}"
+        counts[key] = counts.get(key, 0) + 1
+
+    ordered = sorted(counts.items(), reverse=True)[:weeks]
+    return [{"week": week, "cnt": cnt} for week, cnt in ordered]
+
+
+def _fetch_quality(db, days=14):
+    """Daily Fass fetch-coverage quality from poll_log.glns_failed (added
+    2026-07-23, alongside checker.STAGGER_SECONDS) -- lets us see whether
+    staggering the per-product Fass requests instead of firing them all at
+    once actually reduces "X/Y apotek kunde inte kollas" coverage failures,
+    instead of guessing from scrolling raw logs.
+
+    cutoff is computed in poll_log.polled_at's own convention (Stockholm
+    local time, see _polled_at_to_utc_naive's docstring above) rather than
+    SQLite's UTC date('now') -- comparing a UTC cutoff against local
+    timestamps would silently misplace rows near the day boundary."""
+    cutoff = (datetime.now(_STOCKHOLM) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
+    rows = db.execute("""
+        SELECT substr(polled_at, 1, 10) AS day,
+               COUNT(*) AS n,
+               SUM(CASE WHEN glns_failed > 0 THEN 1 ELSE 0 END) AS n_with_failures,
+               SUM(glns_failed) AS total_failed,
+               SUM(glns_checked) AS total_checked
+        FROM poll_log
+        WHERE polled_at >= ?
+        GROUP BY day
+        ORDER BY day DESC
+    """, [cutoff]).fetchall()
+    out = []
+    for r in rows:
+        pct = round(100 * r["total_failed"] / r["total_checked"], 2) if r["total_checked"] else 0.0
+        out.append({
+            "day": r["day"],
+            "n": r["n"],
+            "n_with_failures": r["n_with_failures"],
+            "failure_pct": pct,
+        })
+    return out
 
 
 @bp.route("/admin")
@@ -222,6 +269,7 @@ def admin():
         most_watched = _most_watched(db)
         split = _curated_vs_catalog(db)
         weekly = _weekly_new_subscriptions(db)
+        fetch_quality = _fetch_quality(db)
         confirmed_subscribers = db.execute(
             "SELECT COUNT(*) AS n FROM subscribers WHERE confirmed_at IS NOT NULL AND deleted_at IS NULL"
         ).fetchone()["n"]
@@ -247,6 +295,7 @@ def admin():
         most_watched=most_watched,
         split=split,
         weekly=weekly,
+        fetch_quality=fetch_quality,
         confirmed_subscribers=confirmed_subscribers,
         active_subscriptions=active_subscriptions,
     )
