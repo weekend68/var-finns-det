@@ -4,6 +4,7 @@ from datetime import timedelta
 from flask import Blueprint, render_template, request
 from markupsafe import escape
 
+import checker
 import mail
 from config import SITE_URL, SUBSCRIPTION_TTL_DAYS, token_url
 from db import create_token, get_db, get_medication, get_or_create_token, get_token, utcnow_str
@@ -195,6 +196,25 @@ def confirm(token):
         )
         if row["subscription_id"]:
             db.execute("UPDATE subscriptions SET active=1 WHERE id=?", [row["subscription_id"]])
+            # If the medication is already in stock right now, there's no
+            # restock to report -- stamp last_notified_at immediately so
+            # checker.py's _notify_subscribers() retry-for-failed-sends query
+            # (which only checks last_notified_at IS NULL, unable to tell
+            # "genuinely never sent" from "brand new subscription") doesn't
+            # fire a confusing "back in stock" email for a status that never
+            # changed.
+            sub_row = db.execute(
+                "SELECT npl_pack_id FROM subscriptions WHERE id=?", [row["subscription_id"]]
+            ).fetchone()
+            try:
+                already_in_stock = bool(checker.get_stock_info(sub_row["npl_pack_id"])["pharmacies"])
+            except Exception:
+                already_in_stock = False
+            if already_in_stock:
+                db.execute(
+                    "UPDATE subscriptions SET last_notified_at=datetime('now') WHERE id=?",
+                    [row["subscription_id"]],
+                )
 
         # Create manage token (30d default TTL)
         manage_token = get_or_create_token(db, "manage", row["subscriber_id"], None)
