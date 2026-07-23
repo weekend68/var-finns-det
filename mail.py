@@ -17,12 +17,23 @@ def _send_raw(to, subject, text_body):
         print(f"  Mail hoppas över (ingen RESEND_API_KEY): {to}")
         return None
     from_addr = os.getenv("FROM_EMAIL", "noreply@varfinnsdet.se")
-    payload = json.dumps({
+    payload_dict = {
         "from": from_addr,
         "to": [to],
         "subject": subject,
         "text": text_body,
-    }).encode()
+    }
+    # Optional operational visibility into real subscriber-facing email
+    # volume/content -- one BCC address, applied to every outgoing mail
+    # (confirmation, notification, renewal) rather than a synthetic
+    # subscription to everything, which would double real send volume
+    # (against DAILY_LIMIT) and need continuous syncing as new
+    # subscriptions/products appear. Unset in any environment where this
+    # isn't wanted.
+    bcc = os.getenv("NOTIFY_BCC_EMAIL")
+    if bcc:
+        payload_dict["bcc"] = [bcc]
+    payload = json.dumps(payload_dict).encode()
     req = urllib.request.Request(
         RESEND_URL,
         data=payload,

@@ -14,7 +14,15 @@ SUBSCRIPTION_TTL_DAYS = 30
 # single day (per Fass's own docs), so a plain "notify once per restock"
 # rule sends far too many emails. Replaces the old approach of clearing
 # last_notified_at as soon as a product was confirmed out of stock again.
-NOTIFY_COOLDOWN_HOURS = 24
+# Raised from 24 to 168 (a week) 2026-07-23 after a week-long poll_log
+# analysis (see GitHub issue #6) confirmed a handful of near-zero-stock
+# products (e.g. Lenzetto, pendling 0-3 pharmacies nationally) flip status
+# often enough that even MIN_CONSECUTIVE_POLLS=2 occasionally reads the
+# noise as a genuine restock. This doesn't stop a false-positive email from
+# firing at all -- it only limits how often one can repeat for the same
+# subscription, deliberately chosen over adding a minimum-pharmacy-count
+# threshold (which would fix correctness but was decided against for now).
+NOTIFY_COOLDOWN_HOURS = 168
 
 # Minimum number of consecutive polls with a new status before a stock-status
 # flip is trusted as real, rather than a single noisy measurement -- fass.py's

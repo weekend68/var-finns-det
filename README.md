@@ -124,7 +124,7 @@ SQLite på Railway persistent volym (`/data/medicinstatus.db`).
 |---|---|---|
 | `RESEND_API_KEY` | API-nyckel från Resend | — |
 | `FROM_EMAIL` | Avsändaradress | `noreply@varfinnsdet.se` |
-| `SITE_NAME` | Sajt-namn i mallar | `varfinnsdet.se` |
+| `SITE_NAME` | Sajt-namn i mallar | `Var finns det?` |
 | `SITE_URL` | Publik URL (utan avslutande /) | — |
 | `DB_PATH` | Sökväg till SQLite-databasen | `/data/medicinstatus.db` |
 | `POLL_INTERVAL` | Minuter mellan pollningar | `2` |
@@ -133,6 +133,7 @@ SQLite på Railway persistent volym (`/data/medicinstatus.db`).
 | `NOTIFICATIONS_PAUSED` | Killswitch för restock-notismejl (bekräftelse-/förnyelsemejl opåverkade) | `true` |
 | `ADMIN_USERNAME` | Användarnamn för `/admin`-dashboarden (HTTP Basic Auth) | `admin` |
 | `ADMIN_PASSWORD` | Lösenord för `/admin` — ej satt = routen 404:ar helt | — |
+| `NOTIFY_BCC_EMAIL` | BCC:as på alla utgående mejl (bekräftelse/notis/påminnelse) | — |
 
 ---
 
