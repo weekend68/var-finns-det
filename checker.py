@@ -348,7 +348,7 @@ def get_stock_info(npl_pack_id, sample_size=300):
     cached = _live_stock_cache.get(npl_pack_id)
     if cached and (time.time() - cached[0]) < ttl:
         checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
-        return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache", "blocked": False}
+        return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache", "blocked": cached[2]}
 
     with lock_for(npl_pack_id):
         # Re-check inside the lock — another thread may have just populated it
@@ -356,24 +356,24 @@ def get_stock_info(npl_pack_id, sample_size=300):
         cached = _live_stock_cache.get(npl_pack_id)
         if cached and (time.time() - cached[0]) < ttl:
             checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
-            return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache", "blocked": False}
+            return {"pharmacies": cached[1], "checked_at": checked_at, "source": "live_cache", "blocked": cached[2]}
 
         pharmacy_map = _pharmacy_map
         if not pharmacy_map:
             return {"pharmacies": [], "checked_at": None, "source": "none", "blocked": False}
         sample_glns = list(pharmacy_map.keys())[:sample_size]
         try:
-            pharmacies, _, _ = check_stock(npl_pack_id, sample_glns, pharmacy_map)
+            pharmacies, _, blocked = check_stock(npl_pack_id, sample_glns, pharmacy_map)
         except Exception:
             if cached:
                 checked_at = datetime.fromtimestamp(cached[0], tz=TZ).strftime("%Y-%m-%d %H:%M")
-                return {"pharmacies": cached[1], "checked_at": checked_at, "source": "stale", "blocked": False}
+                return {"pharmacies": cached[1], "checked_at": checked_at, "source": "stale", "blocked": cached[2]}
             raise
 
         checked_ts = time.time()
-        _live_stock_cache[npl_pack_id] = (checked_ts, pharmacies)
+        _live_stock_cache[npl_pack_id] = (checked_ts, pharmacies, blocked)
         checked_at = datetime.fromtimestamp(checked_ts, tz=TZ).strftime("%Y-%m-%d %H:%M")
-        return {"pharmacies": pharmacies, "checked_at": checked_at, "source": "live", "blocked": False}
+        return {"pharmacies": pharmacies, "checked_at": checked_at, "source": "live", "blocked": blocked}
 
 
 def polling_loop(prev_in_stock):
@@ -571,7 +571,7 @@ def polling_loop(prev_in_stock):
         # out anything old enough that its own TTL logic would refetch it
         # anyway, so an abandoned one-off search doesn't linger forever.
         now_ts = time.time()
-        for stale_id in [k for k, (ts, _) in list(_live_stock_cache.items()) if now_ts - ts > STALE_AFTER]:
+        for stale_id in [k for k, (ts, _, _) in list(_live_stock_cache.items()) if now_ts - ts > STALE_AFTER]:
             _live_stock_cache.pop(stale_id, None)
 
         # _stock_fetch_locks isn't scoped to active_ids at all (it also
